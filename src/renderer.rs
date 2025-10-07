@@ -1,0 +1,267 @@
+use std::ops::Deref;
+
+use iced::{widget, Element};
+use markup5ever_rcdom::Node;
+
+use crate::{
+    structs::{MarkWidget, TextConfig},
+    widgets::{codeblock, link},
+};
+
+use super::structs::{ChildData, ElementProperties};
+
+macro_rules! draw_children {
+    ($s:expr, $node:expr, $element:expr, $child_data:expr, $element_properties:expr) => {
+        $s.render_children($node, $element, $child_data, $element_properties);
+    };
+
+    ($s:expr, $node:expr, $element:expr, $child_data:expr) => {
+        $s.render_children($node, $element, $child_data, ElementProperties::default());
+    };
+
+    ($s:expr, $node:expr, $element:expr) => {
+        $s.render_children(
+            $node,
+            $element,
+            ChildData::default(),
+            ElementProperties::default(),
+        );
+    };
+}
+
+impl<
+        'a,
+        M: Clone + 'a,
+        T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
+        R: iced::advanced::text::Renderer + 'a,
+    > MarkWidget<'a, M, T, R>
+{
+    #[must_use]
+    pub fn traverse_node(
+        &self,
+        node: &Node,
+        element: &mut Element<'a, M, T, R>,
+        data: ChildData,
+        properties: ElementProperties,
+    ) -> bool {
+        match &node.data {
+            markup5ever_rcdom::NodeData::Document => {
+                draw_children!(self, node, element);
+                true
+            }
+            markup5ever_rcdom::NodeData::Text { contents } => {
+                let text = contents.borrow().to_string();
+                let size = if data.heading_weight > 0 {
+                    36 - (data.heading_weight * 4)
+                } else {
+                    16
+                } as u16;
+
+                *element = if matches!(data.text, TextConfig::Mono) {
+                    codeblock(text, size, self.fn_copying_text.as_ref(), self.font_mono).into()
+                } else {
+                    let t = widget::text(text)
+                        .shaping(widget::text::Shaping::Advanced)
+                        .size(size);
+
+                    if let Some(f) = self.font_bold.or(self.font_mono) {
+                        t.font(f)
+                    } else {
+                        t
+                    }
+                    .into()
+                };
+
+                false
+            }
+            markup5ever_rcdom::NodeData::Element {
+                name,
+                attrs,
+                template_contents: _,
+                mathml_annotation_xml_integration_point: _,
+            } => self.render_html_inner(name, attrs, node, element, properties),
+            _ => false,
+        }
+    }
+
+    #[must_use]
+    fn render_html_inner(
+        &self,
+        name: &html5ever::QualName,
+        attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
+        node: &Node,
+        element: &mut Element<'a, M, T, R>,
+        properties: ElementProperties,
+    ) -> bool {
+        let name = name.local.to_string();
+        let attrs = attrs.borrow();
+
+        match name.as_str() {
+            "center" | "kbd" | "span" => {
+                draw_children!(self, node, element);
+                false
+            }
+            "html" | "body" | "p" | "div" => {
+                draw_children!(self, node, element);
+                true
+            }
+            "details" | "summary" | "h1" => {
+                draw_children!(self, node, element, ChildData::with_heading(1));
+                true
+            }
+            "h2" => {
+                draw_children!(self, node, element, ChildData::with_heading(2));
+                true
+            }
+            "h3" => {
+                draw_children!(self, node, element, ChildData::with_heading(3));
+                true
+            }
+            "h4" => {
+                draw_children!(self, node, element, ChildData::with_heading(4));
+                true
+            }
+            "b" | "strong" | "em" | "i" => {
+                draw_children!(self, node, element, ChildData::bold());
+                false
+            }
+            "a" => {
+                self.draw_link(node, element, &attrs);
+                false
+            }
+            "head" | "br" => true,
+            "img" => {
+                self.draw_image(element, &attrs);
+                true
+            }
+            "code" => {
+                draw_children!(self, node, element, ChildData::monospace());
+                false
+            }
+            "hr" => {
+                *element = widget::horizontal_rule(4.0).into();
+                true
+            }
+            "ul" => {
+                draw_children!(self, node, element, ChildData::with_indent());
+                true
+            }
+            "ol" => {
+                draw_children!(self, node, element, ChildData::with_indent_ordered());
+                true
+            }
+            "li" => {
+                let bullet = if let Some(num) = properties.li_ordered_number {
+                    widget::text!("{num}. ")
+                } else {
+                    widget::text("- ")
+                };
+                let mut children: Element<M, T, R> = widget::Column::new().into();
+                draw_children!(self, node, &mut children);
+                *element = widget::row![bullet, children].into();
+                true
+            }
+            _ => {
+                *element = widget::text!("[HTML todo: {name}]").into();
+                true
+            }
+        }
+    }
+
+    fn draw_image(&self, element: &mut Element<'a, M, T, R>, attrs: &[html5ever::Attribute]) {
+        if let Some(attr) = attrs.iter().find(|attr| attr.name.local.deref() == "src") {
+            let url = attr.value.to_string();
+
+            let size = attrs
+                .iter()
+                .find(|attr| {
+                    let name = attr.name.local.deref();
+                    name == "width" || name == "height"
+                })
+                .and_then(|n| n.value.deref().parse::<f32>().ok());
+
+            if let Some(func) = self.fn_drawing_image.as_ref() {
+                *element = func(&url, size);
+            }
+        } else {
+            *element = widget::text("[HTML error: malformed image]]").into();
+        }
+    }
+
+    fn draw_link(
+        &self,
+        node: &Node,
+        element: &mut Element<'a, M, T, R>,
+        attrs: &std::cell::Ref<'_, Vec<html5ever::Attribute>>,
+    ) {
+        *element = if let Some(attr) = attrs
+            .iter()
+            .find(|attr| attr.name.local.to_string().as_str() == "href")
+        {
+            let url = attr.value.to_string();
+            let children_empty = { node.children.borrow().is_empty() };
+
+            let mut children: Element<M, T, R> = widget::Column::new().into();
+            draw_children!(self, node, &mut children);
+
+            if children_empty {
+                children = widget::column!(widget::text(url.clone())).into();
+            }
+            link(children, &url, self.fn_clicking_link.as_ref()).into()
+        } else {
+            widget::text("[HTML error: malformed link]]").into()
+        };
+    }
+
+    fn render_children(
+        &self,
+        node: &Node,
+        element: &mut Element<'a, M, T, R>,
+        data: ChildData,
+        properties: ElementProperties,
+    ) {
+        let children = node.children.borrow();
+
+        let mut column = widget::Column::new().spacing(5);
+        let mut row =
+            widget::Row::new().push_maybe(data.indent.then_some(widget::Space::with_width(16)));
+
+        let mut is_newline = false;
+
+        let mut i = 0;
+        for item in children.iter() {
+            if is_newline {
+                column = column.push(row.wrap());
+                row = widget::Row::new()
+                    .push_maybe(data.indent.then_some(widget::Space::with_width(16)));
+            }
+            if is_node_useless(item) {
+                continue;
+            }
+
+            let mut element = widget::column!().into();
+
+            let mut properties = properties;
+            if data.li_ordered {
+                properties.li_ordered_number = Some(i + 1);
+            }
+
+            is_newline = self.traverse_node(item, &mut element, data, properties);
+            row = row.push(element);
+
+            i += 1;
+        }
+        column = column.push(row.wrap());
+        *element = column.into();
+    }
+}
+
+fn is_node_useless(node: &Node) -> bool {
+    if let markup5ever_rcdom::NodeData::Text { contents } = &node.data {
+        let contents = contents.borrow();
+        let contents = contents.to_string();
+        contents.trim().is_empty()
+    } else {
+        false
+    }
+}
