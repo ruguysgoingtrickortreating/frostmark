@@ -5,7 +5,7 @@ use iced::{
 };
 
 pub fn codeblock<'a, F, M, T, R>(
-    code: String,
+    code: &'_ str,
     size: u16,
     m: Option<&F>,
     mono: Option<R::Font>,
@@ -16,13 +16,13 @@ where
     T: 'a + widget::button::Catalog + widget::text::Catalog,
     F: Fn(&str) -> M,
 {
-    let t = widget::text(code.clone()).size(size);
+    let t = widget::text(code.to_owned()).size(size);
     widget::button(if let Some(mono) = mono {
         t.font(mono)
     } else {
         t
     })
-    .on_press_maybe(m.map(|n| n(&code)))
+    .on_press_maybe(m.map(|n| n(code)))
     .padding(2)
 }
 
@@ -40,13 +40,12 @@ where
         .padding(0)
 }
 
-pub fn link_text<'a, M: 'a, T, R: advanced::Renderer + advanced::text::Renderer + 'a, F>(
+pub fn link_text<'a, M: 'a, R: advanced::Renderer + advanced::text::Renderer + 'a, F>(
     e: impl IntoFragment<'a>,
     url: &str,
     msg: Option<&F>,
 ) -> widget::text::Span<'a, M, R::Font>
 where
-    T: widget::button::Catalog + widget::rule::Catalog + 'a,
     F: Fn(&str) -> M,
 {
     widget::span(e)

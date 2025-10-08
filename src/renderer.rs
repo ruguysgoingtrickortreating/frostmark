@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use iced::{widget, Element};
 use markup5ever_rcdom::Node;
 
@@ -35,34 +33,21 @@ impl<
             }
             markup5ever_rcdom::NodeData::Text { contents } => {
                 let text = contents.borrow();
-                let size = if data.heading_weight > 0 {
-                    36 - (data.heading_weight * 4)
-                } else {
-                    16
-                } as u16;
+                let weight = data.heading_weight;
+                let size = if weight > 0 { 36 - (weight * 4) } else { 16 };
 
                 *element = if data.monospace {
-                    codeblock(
-                        text.to_string(),
-                        size,
-                        self.fn_copying_text.as_ref(),
-                        self.font_mono,
-                    )
-                    .into()
+                    codeblock(&text, size, self.fn_copying_text.as_ref(), self.font_mono).into()
                 } else {
-                    // TODO: Don't do this for pre elements
                     let t = widget::span(clean_whitespace(&text)).size(size);
 
-                    RenderedSpan::Span(
-                        if let (true, Some(f)) =
-                            (data.bold, self.font_bold.or(self.font_mono).or(self.font))
-                        {
-                            t.font(f)
-                        } else {
-                            t
-                        }
-                        .into(),
-                    )
+                    RenderedSpan::Spans(vec![if let (true, Some(f)) =
+                        (data.bold, self.font_bold.or(self.font_mono).or(self.font))
+                    {
+                        t.font(f)
+                    } else {
+                        t
+                    }])
                 };
             }
             markup5ever_rcdom::NodeData::Element {
@@ -75,7 +60,6 @@ impl<
         }
     }
 
-    #[must_use]
     fn render_html_inner(
         &self,
         name: &html5ever::QualName,
@@ -88,10 +72,8 @@ impl<
         let attrs = attrs.borrow();
 
         match name.as_str() {
-            "center" | "kbd" | "span" => {
-                draw_children!(self, node, element, data);
-            }
-            "html" | "body" | "p" | "div" | "pre" => {
+            // TODO: Don't trim whitespace in pre
+            "center" | "kbd" | "span" | "html" | "body" | "p" | "div" | "pre" => {
                 draw_children!(self, node, element, data);
             }
             "details" | "summary" | "h1" => {
@@ -157,16 +139,16 @@ impl<
     }
 
     fn draw_image(&self, element: &mut RenderedSpan<'a, M, T, R>, attrs: &[html5ever::Attribute]) {
-        if let Some(attr) = attrs.iter().find(|attr| attr.name.local.deref() == "src") {
+        if let Some(attr) = attrs.iter().find(|attr| &*attr.name.local == "src") {
             let url = attr.value.to_string();
 
             let size = attrs
                 .iter()
                 .find(|attr| {
-                    let name = attr.name.local.deref();
+                    let name = &*attr.name.local;
                     name == "width" || name == "height"
                 })
-                .and_then(|n| n.value.deref().parse::<f32>().ok());
+                .and_then(|n| n.value.parse::<f32>().ok());
 
             if let Some(func) = self.fn_drawing_image.as_ref() {
                 *element = func(&url, size).into();
@@ -196,9 +178,9 @@ impl<
 
             let msg = self.fn_clicking_link.as_ref();
             if children_empty {
-                RenderedSpan::Span(link_text::<_, T, R, _>(url.clone(), &url, msg))
+                RenderedSpan::Spans(vec![link_text::<_, R, _>(url.clone(), &url, msg)])
             } else if let Some(text) = children.get_text() {
-                RenderedSpan::Span(link_text::<_, T, R, _>(text, &url, msg))
+                RenderedSpan::Spans(vec![link_text::<_, R, _>(text, &url, msg)])
             } else {
                 link(children.render(), &url, msg).into()
             }
@@ -207,7 +189,7 @@ impl<
             draw_children!(self, node, &mut children, data);
 
             if let Some(text) = children.get_text() {
-                RenderedSpan::Span(widget::span(text).underline(true))
+                RenderedSpan::Spans(vec![widget::span(text).underline(true)])
             } else {
                 link(children.render(), "", Some(&Self::e).filter(|_| false)).into()
             }
@@ -274,7 +256,7 @@ impl<
                 column
                     .into_iter()
                     .filter(|n| !n.is_empty())
-                    .map(|n| n.render()),
+                    .map(RenderedSpan::render),
             )
             .spacing(5)
             .into()
@@ -298,13 +280,44 @@ fn is_block_element(node: &Node) -> bool {
     };
     let n: &str = &name.local;
 
-    match n {
-        "address" | "article" | "aside" | "blockquote" | "canvas" | "dd" | "div" | "dl" | "dt"
-        | "fieldset" | "figcaption" | "figure" | "footer" | "form" | "h1" | "h2" | "h3" | "h4"
-        | "h5" | "h6" | "header" | "hr" | "li" | "main" | "nav" | "noscript" | "ol" | "p"
-        | "pre" | "section" | "table" | "tfoot" | "ul" | "video" | "br" => true,
-        _ => false,
-    }
+    matches!(
+        n,
+        "address"
+            | "article"
+            | "aside"
+            | "blockquote"
+            | "canvas"
+            | "dd"
+            | "div"
+            | "dl"
+            | "dt"
+            | "fieldset"
+            | "figcaption"
+            | "figure"
+            | "footer"
+            | "form"
+            | "h1"
+            | "h2"
+            | "h3"
+            | "h4"
+            | "h5"
+            | "h6"
+            | "header"
+            | "hr"
+            | "li"
+            | "main"
+            | "nav"
+            | "noscript"
+            | "ol"
+            | "p"
+            | "pre"
+            | "section"
+            | "table"
+            | "tfoot"
+            | "ul"
+            | "video"
+            | "br"
+    )
 }
 
 impl<
@@ -317,7 +330,7 @@ impl<
     fn from(value: MarkWidget<'a, M, T, R>) -> Self {
         let node = &value.state.dom.document;
         let mut elem: RenderedSpan<'a, M, T, R> = widget::Column::new().into();
-        _ = value.traverse_node(node, &mut elem, ChildData::default());
+        value.traverse_node(node, &mut elem, ChildData::default());
         elem.render()
     }
 }
