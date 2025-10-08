@@ -6,59 +6,37 @@ use markup5ever_rcdom::RcDom;
 pub struct ChildData {
     pub heading_weight: usize,
     pub indent: bool,
-    pub text: TextConfig,
-    pub li_ordered: bool,
+    pub bold: bool,
+    pub monospace: bool,
+
+    pub li_ordered_number: Option<usize>,
 }
 
 impl ChildData {
-    pub fn with_heading(weight: usize) -> Self {
-        Self {
-            heading_weight: weight,
-            ..Default::default()
-        }
+    pub fn heading(mut self, weight: usize) -> Self {
+        self.heading_weight = weight;
+        self
     }
 
-    pub fn with_indent() -> Self {
-        Self {
-            indent: true,
-            ..Default::default()
-        }
+    pub fn indent(mut self) -> Self {
+        self.indent = true;
+        self
     }
 
-    pub fn with_indent_ordered() -> Self {
-        Self {
-            indent: true,
-            li_ordered: true,
-            ..Default::default()
-        }
+    pub fn ordered(mut self) -> Self {
+        self.li_ordered_number = Some(1);
+        self
     }
 
-    pub fn monospace() -> Self {
-        Self {
-            text: TextConfig::Mono,
-            ..Default::default()
-        }
+    pub fn monospace(mut self) -> Self {
+        self.monospace = true;
+        self
     }
 
-    pub fn bold() -> Self {
-        Self {
-            text: TextConfig::Bold,
-            ..Default::default()
-        }
+    pub fn bold(mut self) -> Self {
+        self.bold = true;
+        self
     }
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub enum TextConfig {
-    Mono,
-    Bold,
-    #[default]
-    Normal,
-}
-
-#[derive(Debug, Default, Clone, Copy)]
-pub struct ElementProperties {
-    pub li_ordered_number: Option<usize>,
 }
 
 pub struct MarkState {

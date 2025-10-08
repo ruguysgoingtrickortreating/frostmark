@@ -4,28 +4,15 @@ use iced::{widget, Element};
 use markup5ever_rcdom::Node;
 
 use crate::{
-    structs::{MarkWidget, TextConfig},
+    structs::MarkWidget,
     widgets::{codeblock, link},
 };
 
-use super::structs::{ChildData, ElementProperties};
+use super::structs::ChildData;
 
 macro_rules! draw_children {
-    ($s:expr, $node:expr, $element:expr, $child_data:expr, $element_properties:expr) => {
-        $s.render_children($node, $element, $child_data, $element_properties);
-    };
-
     ($s:expr, $node:expr, $element:expr, $child_data:expr) => {
-        $s.render_children($node, $element, $child_data, ElementProperties::default());
-    };
-
-    ($s:expr, $node:expr, $element:expr) => {
-        $s.render_children(
-            $node,
-            $element,
-            ChildData::default(),
-            ElementProperties::default(),
-        );
+        $s.render_children($node, $element, $child_data);
     };
 }
 
@@ -42,11 +29,10 @@ impl<
         node: &Node,
         element: &mut Element<'a, M, T, R>,
         data: ChildData,
-        properties: ElementProperties,
     ) -> bool {
         match &node.data {
             markup5ever_rcdom::NodeData::Document => {
-                draw_children!(self, node, element);
+                draw_children!(self, node, element, data);
                 true
             }
             markup5ever_rcdom::NodeData::Text { contents } => {
@@ -57,7 +43,7 @@ impl<
                     16
                 } as u16;
 
-                *element = if matches!(data.text, TextConfig::Mono) {
+                *element = if data.monospace {
                     codeblock(
                         text.to_string(),
                         size,
@@ -71,8 +57,8 @@ impl<
                         .shaping(widget::text::Shaping::Advanced)
                         .size(size);
 
-                    if let (TextConfig::Bold, Some(f)) =
-                        (data.text, self.font_bold.or(self.font_mono))
+                    if let (true, Some(f)) =
+                        (data.bold, self.font_bold.or(self.font_mono).or(self.font))
                     {
                         t.font(f)
                     } else {
@@ -88,7 +74,7 @@ impl<
                 attrs,
                 template_contents: _,
                 mathml_annotation_xml_integration_point: _,
-            } => self.render_html_inner(name, attrs, node, element, properties),
+            } => self.render_html_inner(name, attrs, node, element, data),
             _ => false,
         }
     }
@@ -100,39 +86,39 @@ impl<
         attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
         node: &Node,
         element: &mut Element<'a, M, T, R>,
-        properties: ElementProperties,
+        data: ChildData,
     ) -> bool {
         let name = name.local.to_string();
         let attrs = attrs.borrow();
 
         match name.as_str() {
             "center" | "kbd" | "span" => {
-                draw_children!(self, node, element);
+                draw_children!(self, node, element, data);
                 false
             }
             "html" | "body" | "p" | "div" | "pre" => {
-                draw_children!(self, node, element);
+                draw_children!(self, node, element, data);
                 true
             }
             "details" | "summary" | "h1" => {
-                draw_children!(self, node, element, ChildData::with_heading(1));
+                draw_children!(self, node, element, data.heading(1));
                 true
             }
             "h2" => {
-                draw_children!(self, node, element, ChildData::with_heading(2));
+                draw_children!(self, node, element, data.heading(2));
                 true
             }
             "h3" => {
-                draw_children!(self, node, element, ChildData::with_heading(3));
+                draw_children!(self, node, element, data.heading(3));
                 true
             }
             "h4" => {
-                draw_children!(self, node, element, ChildData::with_heading(4));
+                draw_children!(self, node, element, data.heading(4));
                 true
             }
             "blockquote" => {
                 let mut t = widget::Column::new().into();
-                draw_children!(self, node, &mut t);
+                draw_children!(self, node, &mut t, data);
                 *element = widget::stack!(
                     widget::row![widget::Space::with_width(10), t],
                     widget::vertical_rule(2)
@@ -141,11 +127,11 @@ impl<
                 true
             }
             "b" | "strong" | "em" | "i" => {
-                draw_children!(self, node, element, ChildData::bold());
+                draw_children!(self, node, element, data.bold());
                 false
             }
             "a" => {
-                self.draw_link(node, element, &attrs);
+                self.draw_link(node, element, &attrs, data);
                 false
             }
             "head" | "br" => true,
@@ -154,7 +140,7 @@ impl<
                 true
             }
             "code" => {
-                draw_children!(self, node, element, ChildData::monospace());
+                draw_children!(self, node, element, data.monospace());
                 false
             }
             "hr" => {
@@ -162,21 +148,23 @@ impl<
                 true
             }
             "ul" => {
-                draw_children!(self, node, element, ChildData::with_indent());
+                let mut data = data.indent();
+                data.li_ordered_number = None;
+                draw_children!(self, node, element, data);
                 true
             }
             "ol" => {
-                draw_children!(self, node, element, ChildData::with_indent_ordered());
+                draw_children!(self, node, element, data.indent().ordered());
                 true
             }
             "li" => {
-                let bullet = if let Some(num) = properties.li_ordered_number {
+                let bullet = if let Some(num) = data.li_ordered_number {
                     widget::text!("{num}. ")
                 } else {
                     widget::text("- ")
                 };
                 let mut children: Element<M, T, R> = widget::Column::new().into();
-                draw_children!(self, node, &mut children);
+                draw_children!(self, node, &mut children, data);
                 *element = widget::row![bullet, children].into();
                 true
             }
@@ -212,6 +200,7 @@ impl<
         node: &Node,
         element: &mut Element<'a, M, T, R>,
         attrs: &std::cell::Ref<'_, Vec<html5ever::Attribute>>,
+        data: ChildData,
     ) {
         *element = if let Some(attr) = attrs
             .iter()
@@ -221,7 +210,7 @@ impl<
             let children_empty = { node.children.borrow().is_empty() };
 
             let mut children: Element<M, T, R> = widget::Column::new().into();
-            draw_children!(self, node, &mut children);
+            draw_children!(self, node, &mut children, data);
 
             if children_empty {
                 children = widget::column!(widget::text(url.clone())).into();
@@ -232,13 +221,7 @@ impl<
         };
     }
 
-    fn render_children(
-        &self,
-        node: &Node,
-        element: &mut Element<'a, M, T, R>,
-        data: ChildData,
-        properties: ElementProperties,
-    ) {
+    fn render_children(&self, node: &Node, element: &mut Element<'a, M, T, R>, data: ChildData) {
         let children = node.children.borrow();
 
         let mut column = widget::Column::new().spacing(5);
@@ -258,14 +241,13 @@ impl<
                 continue;
             }
 
-            let mut element = widget::column!().into();
-
-            let mut properties = properties;
-            if data.li_ordered {
-                properties.li_ordered_number = Some(i + 1);
+            let mut data = data;
+            if data.li_ordered_number.is_some() {
+                data.li_ordered_number = Some(i + 1);
             }
 
-            is_newline = self.traverse_node(item, &mut element, data, properties);
+            let mut element = widget::column!().into();
+            is_newline = self.traverse_node(item, &mut element, data);
             row = row.push(element);
 
             i += 1;
@@ -304,12 +286,7 @@ impl<
     fn from(value: MarkWidget<'a, M, T, R>) -> Self {
         let node = &value.state.dom.document;
         let mut elem: Element<'a, M, T, R> = widget::Column::new().into();
-        _ = value.traverse_node(
-            node,
-            &mut elem,
-            ChildData::default(),
-            ElementProperties::default(),
-        );
+        _ = value.traverse_node(node, &mut elem, ChildData::default());
         elem
     }
 }
