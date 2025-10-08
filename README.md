@@ -1,10 +1,14 @@
-# frostmark
+# 🧊 Frostmark
 
-*HTML/Markdown viewer for iced*
+**An HTML + Markdown viewer for [iced](https://iced.rs/)**
+
+Render rich text in your `iced` app at lightning-fast speeds using plain HTML or Markdown!
 
 ![Demo showing HTML and Markdown together](./frostmark.png)
 
-# How to use it?
+---
+
+## Usage
 
 1. Create a `MarkState` and **store it in your application state**.
 
@@ -30,12 +34,12 @@ widget::container( // just an example
 .padding(10)
 ```
 
-# Example
+## Example
 
-You can find examples in the `examples/` directory.
+You can find runnable examples in [`examples/`](examples/)
 
 <details>
-<summary>Here's a simple example:</summary>
+<summary>Click to expand a fully fledged code example</summary>
 
 ```rust
 use frostmark::{MarkState, MarkWidget};
@@ -93,23 +97,28 @@ const YOUR_TEXT: &str = "Some *Markdown* or <b>HTML</b> text here!";
 </details>
 <br>
 
-# How does this work
+## How does this work
 
 - Markdown (if present) is converted to HTML using `comrak`.
-- HTML is parsed using `html5ever`, a component of the [Servo browser](https://servo.org/) project.
-- The resulting DOM is then converted **directly** to `iced` widgets by our custom renderer.
+- HTML is parsed using [`html5ever`](https://crates.io/crates/html5ever/), from the [Servo](https://servo.org/) project.
+- The resulting DOM is rendered **directly to `iced` widgets** using a custom renderer.
 
-The main highlight here is that we don't use any custom widgets.
-This entire thing renders to a tree of `column`/`row`
-containing `rich_text`, `button`, `horizontal_bar`/`vertical_bar` and so on.
+**No custom widget types** - everything is built from standard iced components like:
+`column`, `row`, `rich_text`, `button`, `horizontal_bar`, etc.
 
-If you're curious, the actual rendering happens directly
-inside the `impl Into<Element> for MarkWidget`!
+Rendering happens right inside `impl Into<Element> for MarkWidget`.
 
-# TODO
+## Roadmap
 
-- [ ] Add more examples for things like images, links, and text copying.
-- [ ] Improve the ability for users to style `MarkWidget` text, buttons, etc.
-- [ ] Have a "quick and dirty" function that takes in text and just renders it in one go (cached, of course).
-- [ ] Add support for more elements like underline, strikethrough, superscript, subscript, etc.
-- [ ] Add GIF support.
+- [ ] More examples (images, links, text copying)
+- [ ] Better widget styling options.
+- [ ] Quick “render and cache” API
+- [ ] Support for underline, strikethrough, sub/superscript
+
+# Contributing
+
+This library is experimental.
+Bug reports and pull requests are welcome;
+contributions are appreciated!
+
+- **License**: Dual licensed under MIT and Apache 2.0.
