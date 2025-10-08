@@ -23,17 +23,15 @@ impl<
         R: iced::advanced::text::Renderer + 'a,
     > MarkWidget<'a, M, T, R>
 {
-    #[must_use]
     pub(crate) fn traverse_node(
         &self,
         node: &Node,
         element: &mut Element<'a, M, T, R>,
         data: ChildData,
-    ) -> bool {
+    ) {
         match &node.data {
             markup5ever_rcdom::NodeData::Document => {
                 draw_children!(self, node, element, data);
-                true
             }
             markup5ever_rcdom::NodeData::Text { contents } => {
                 let text = contents.borrow();
@@ -66,8 +64,6 @@ impl<
                     }
                     .into()
                 };
-
-                false
             }
             markup5ever_rcdom::NodeData::Element {
                 name,
@@ -75,7 +71,7 @@ impl<
                 template_contents: _,
                 mathml_annotation_xml_integration_point: _,
             } => self.render_html_inner(name, attrs, node, element, data),
-            _ => false,
+            _ => {}
         }
     }
 
@@ -87,34 +83,28 @@ impl<
         node: &Node,
         element: &mut Element<'a, M, T, R>,
         data: ChildData,
-    ) -> bool {
+    ) {
         let name = name.local.to_string();
         let attrs = attrs.borrow();
 
         match name.as_str() {
             "center" | "kbd" | "span" => {
                 draw_children!(self, node, element, data);
-                false
             }
             "html" | "body" | "p" | "div" | "pre" => {
                 draw_children!(self, node, element, data);
-                true
             }
             "details" | "summary" | "h1" => {
                 draw_children!(self, node, element, data.heading(1));
-                true
             }
             "h2" => {
                 draw_children!(self, node, element, data.heading(2));
-                true
             }
             "h3" => {
                 draw_children!(self, node, element, data.heading(3));
-                true
             }
             "h4" => {
                 draw_children!(self, node, element, data.heading(4));
-                true
             }
             "blockquote" => {
                 let mut t = widget::Column::new().into();
@@ -124,38 +114,30 @@ impl<
                     widget::vertical_rule(2)
                 )
                 .into();
-                true
             }
             "b" | "strong" | "em" | "i" => {
                 draw_children!(self, node, element, data.bold());
-                false
             }
             "a" => {
                 self.draw_link(node, element, &attrs, data);
-                false
             }
-            "head" | "br" => true,
+            "head" | "br" => {}
             "img" => {
                 self.draw_image(element, &attrs);
-                true
             }
             "code" => {
                 draw_children!(self, node, element, data.monospace());
-                false
             }
             "hr" => {
                 *element = widget::horizontal_rule(4.0).into();
-                true
             }
             "ul" => {
                 let mut data = data.indent();
                 data.li_ordered_number = None;
                 draw_children!(self, node, element, data);
-                true
             }
             "ol" => {
                 draw_children!(self, node, element, data.indent().ordered());
-                true
             }
             "li" => {
                 let bullet = if let Some(num) = data.li_ordered_number {
@@ -166,11 +148,9 @@ impl<
                 let mut children: Element<M, T, R> = widget::Column::new().into();
                 draw_children!(self, node, &mut children, data);
                 *element = widget::row![bullet, children].into();
-                true
             }
             _ => {
                 *element = widget::text!("[HTML todo: {name}]").into();
-                true
             }
         }
     }
@@ -224,19 +204,11 @@ impl<
     fn render_children(&self, node: &Node, element: &mut Element<'a, M, T, R>, data: ChildData) {
         let children = node.children.borrow();
 
-        let mut column = widget::Column::new().spacing(5);
-        let mut row =
-            widget::Row::new().push_maybe(data.indent.then_some(widget::Space::with_width(16)));
-
-        let mut is_newline = false;
+        let mut column = Vec::new();
+        let mut row = Vec::new();
 
         let mut i = 0;
         for item in children.iter() {
-            if is_newline || should_force_newline_for(item) {
-                column = column.push(row.wrap());
-                row = widget::Row::new()
-                    .push_maybe(data.indent.then_some(widget::Space::with_width(16)));
-            }
             if is_node_useless(item) {
                 continue;
             }
@@ -245,15 +217,35 @@ impl<
             if data.li_ordered_number.is_some() {
                 data.li_ordered_number = Some(i + 1);
             }
-
             let mut element = widget::column!().into();
-            is_newline = self.traverse_node(item, &mut element, data);
-            row = row.push(element);
+            self.traverse_node(item, &mut element, data);
+
+            if is_block_element(item) {
+                if !row.is_empty() {
+                    let mut old_row = Vec::new();
+                    std::mem::swap(&mut row, &mut old_row);
+                    column.push(old_row);
+                }
+
+                column.push(vec![element]);
+            } else {
+                row.push(element);
+            }
 
             i += 1;
         }
-        column = column.push(row.wrap());
-        *element = column.into();
+
+        if !row.is_empty() {
+            column.push(row);
+        }
+
+        *element = widget::column(
+            column
+                .into_iter()
+                .map(|n| widget::row(n).spacing(5).wrap().into()),
+        )
+        .spacing(5)
+        .into();
     }
 }
 
@@ -267,12 +259,18 @@ fn is_node_useless(node: &Node) -> bool {
     }
 }
 
-fn should_force_newline_for(node: &Node) -> bool {
-    if let markup5ever_rcdom::NodeData::Element { name, .. } = &node.data {
-        let n: &str = &name.local;
-        n == "blockquote"
-    } else {
-        false
+fn is_block_element(node: &Node) -> bool {
+    let markup5ever_rcdom::NodeData::Element { name, .. } = &node.data else {
+        return false;
+    };
+    let n: &str = &name.local;
+
+    match n {
+        "address" | "article" | "aside" | "blockquote" | "canvas" | "dd" | "div" | "dl" | "dt"
+        | "fieldset" | "figcaption" | "figure" | "footer" | "form" | "h1>-<h6" | "header"
+        | "hr" | "li" | "main" | "nav" | "noscript" | "ol" | "p" | "pre" | "section" | "table"
+        | "tfoot" | "ul" | "video" => true,
+        _ => false,
     }
 }
 
