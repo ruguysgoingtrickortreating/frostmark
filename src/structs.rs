@@ -1,5 +1,5 @@
 use html5ever::{parse_document, tendril::TendrilSink, ParseOpts};
-use iced::{widget, Element, Font};
+use iced::Element;
 use markup5ever_rcdom::RcDom;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -109,6 +109,8 @@ impl MarkState {
 }
 
 pub struct MarkWidget<'a, M, T, R: iced::advanced::text::Renderer> {
+    pub(crate) state: &'a MarkState,
+
     pub(crate) font: Option<R::Font>,
     pub(crate) font_bold: Option<R::Font>,
     pub(crate) font_mono: Option<R::Font>,
@@ -122,8 +124,9 @@ impl<'a, M: 'a, T: 'a, R> MarkWidget<'a, M, T, R>
 where
     R: iced::advanced::text::Renderer + 'a,
 {
-    pub fn new() -> Self {
+    pub fn new(state: &'a MarkState) -> Self {
         Self {
+            state,
             font: None,
             font_bold: None,
             font_mono: None,

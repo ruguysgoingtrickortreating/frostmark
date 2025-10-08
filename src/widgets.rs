@@ -19,7 +19,7 @@ where
         t
     })
     .on_press_maybe(m.map(|n| n(&code)))
-    .padding(0)
+    .padding(2)
 }
 
 pub fn link<'a, M: 'a, T, R: advanced::Renderer + 'a, F>(

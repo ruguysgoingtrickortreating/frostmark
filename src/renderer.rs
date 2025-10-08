@@ -37,7 +37,7 @@ impl<
     > MarkWidget<'a, M, T, R>
 {
     #[must_use]
-    pub fn traverse_node(
+    pub(crate) fn traverse_node(
         &self,
         node: &Node,
         element: &mut Element<'a, M, T, R>,
@@ -50,7 +50,7 @@ impl<
                 true
             }
             markup5ever_rcdom::NodeData::Text { contents } => {
-                let text = contents.borrow().to_string();
+                let text = contents.borrow();
                 let size = if data.heading_weight > 0 {
                     36 - (data.heading_weight * 4)
                 } else {
@@ -58,13 +58,22 @@ impl<
                 } as u16;
 
                 *element = if matches!(data.text, TextConfig::Mono) {
-                    codeblock(text, size, self.fn_copying_text.as_ref(), self.font_mono).into()
+                    codeblock(
+                        text.to_string(),
+                        size,
+                        self.fn_copying_text.as_ref(),
+                        self.font_mono,
+                    )
+                    .into()
                 } else {
-                    let t = widget::text(text)
+                    // TODO: Don't do this for pre elements
+                    let t = widget::text(clean_whitespace(&text))
                         .shaping(widget::text::Shaping::Advanced)
                         .size(size);
 
-                    if let Some(f) = self.font_bold.or(self.font_mono) {
+                    if let (TextConfig::Bold, Some(f)) =
+                        (data.text, self.font_bold.or(self.font_mono))
+                    {
                         t.font(f)
                     } else {
                         t
@@ -101,7 +110,7 @@ impl<
                 draw_children!(self, node, element);
                 false
             }
-            "html" | "body" | "p" | "div" => {
+            "html" | "body" | "p" | "div" | "pre" => {
                 draw_children!(self, node, element);
                 true
             }
@@ -119,6 +128,16 @@ impl<
             }
             "h4" => {
                 draw_children!(self, node, element, ChildData::with_heading(4));
+                true
+            }
+            "blockquote" => {
+                let mut t = widget::Column::new().into();
+                draw_children!(self, node, &mut t);
+                *element = widget::stack!(
+                    widget::row![widget::Space::with_width(10), t],
+                    widget::vertical_rule(2)
+                )
+                .into();
                 true
             }
             "b" | "strong" | "em" | "i" => {
@@ -230,7 +249,7 @@ impl<
 
         let mut i = 0;
         for item in children.iter() {
-            if is_newline {
+            if is_newline || should_force_newline_for(item) {
                 column = column.push(row.wrap());
                 row = widget::Row::new()
                     .push_maybe(data.indent.then_some(widget::Space::with_width(16)));
@@ -264,4 +283,41 @@ fn is_node_useless(node: &Node) -> bool {
     } else {
         false
     }
+}
+
+fn should_force_newline_for(node: &Node) -> bool {
+    if let markup5ever_rcdom::NodeData::Element { name, .. } = &node.data {
+        let n: &str = &name.local;
+        n == "blockquote"
+    } else {
+        false
+    }
+}
+
+impl<
+        'a,
+        M: Clone + 'a,
+        T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
+        R: iced::advanced::text::Renderer + 'a,
+    > From<MarkWidget<'a, M, T, R>> for Element<'a, M, T, R>
+{
+    fn from(value: MarkWidget<'a, M, T, R>) -> Self {
+        let node = &value.state.dom.document;
+        let mut elem: Element<'a, M, T, R> = widget::Column::new().into();
+        _ = value.traverse_node(
+            node,
+            &mut elem,
+            ChildData::default(),
+            ElementProperties::default(),
+        );
+        elem
+    }
+}
+
+fn clean_whitespace(input: &str) -> String {
+    input
+        .split_whitespace()
+        .filter(|n| !n.is_empty())
+        .collect::<Vec<&str>>()
+        .join(" ")
 }
