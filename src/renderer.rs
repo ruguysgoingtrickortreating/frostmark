@@ -121,7 +121,8 @@ impl<
             "a" => {
                 self.draw_link(node, element, &attrs, data);
             }
-            "head" | "br" | "title" | "meta" => {}
+            "br" => *element = widget::Column::new().into(),
+            "head" | "title" | "meta" => {}
             "img" => {
                 self.draw_image(element, &attrs);
             }

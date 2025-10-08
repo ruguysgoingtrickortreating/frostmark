@@ -47,11 +47,6 @@ pub struct MarkState {
 
 impl MarkState {
     pub fn with_html(input: &str) -> Self {
-        // If you can't fix the chaos, embrace the chaos.
-        let input = input
-            .replace("<ul>", "<br><ul>")
-            .replace("<ol>", "<br><ol>");
-
         let dom = parse_document(RcDom::default(), ParseOpts::default())
             .from_utf8()
             .read_from(&mut input.as_bytes())
