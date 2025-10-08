@@ -1,4 +1,8 @@
-use iced::{advanced, widget, Element};
+use iced::{
+    advanced,
+    widget::{self, text::IntoFragment},
+    Element,
+};
 
 pub fn codeblock<'a, F, M, T, R>(
     code: String,
@@ -34,6 +38,20 @@ where
     widget::button(underline(e))
         .on_press_maybe(msg.map(|n| n(url)))
         .padding(0)
+}
+
+pub fn link_text<'a, M: 'a, T, R: advanced::Renderer + advanced::text::Renderer + 'a, F>(
+    e: impl IntoFragment<'a>,
+    url: &str,
+    msg: Option<&F>,
+) -> widget::text::Span<'a, M, R::Font>
+where
+    T: widget::button::Catalog + widget::rule::Catalog + 'a,
+    F: Fn(&str) -> M,
+{
+    widget::span(e)
+        .link_maybe(msg.map(|n| n(url)))
+        .underline(true)
 }
 
 pub fn underline<'a, M: 'a, T: widget::rule::Catalog + 'a, R: advanced::Renderer + 'a>(

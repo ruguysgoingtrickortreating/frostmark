@@ -4,8 +4,8 @@ use iced::{widget, Element};
 use markup5ever_rcdom::Node;
 
 use crate::{
-    structs::MarkWidget,
-    widgets::{codeblock, link},
+    structs::{MarkWidget, RenderedSpan},
+    widgets::{codeblock, link, link_text},
 };
 
 use super::structs::ChildData;
@@ -18,7 +18,7 @@ macro_rules! draw_children {
 
 impl<
         'a,
-        M: Clone + 'a,
+        M: Clone + 'static,
         T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
         R: iced::advanced::text::Renderer + 'a,
     > MarkWidget<'a, M, T, R>
@@ -26,7 +26,7 @@ impl<
     pub(crate) fn traverse_node(
         &self,
         node: &Node,
-        element: &mut Element<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T, R>,
         data: ChildData,
     ) {
         match &node.data {
@@ -51,18 +51,18 @@ impl<
                     .into()
                 } else {
                     // TODO: Don't do this for pre elements
-                    let t = widget::text(clean_whitespace(&text))
-                        .shaping(widget::text::Shaping::Advanced)
-                        .size(size);
+                    let t = widget::span(clean_whitespace(&text)).size(size);
 
-                    if let (true, Some(f)) =
-                        (data.bold, self.font_bold.or(self.font_mono).or(self.font))
-                    {
-                        t.font(f)
-                    } else {
-                        t
-                    }
-                    .into()
+                    RenderedSpan::Span(
+                        if let (true, Some(f)) =
+                            (data.bold, self.font_bold.or(self.font_mono).or(self.font))
+                        {
+                            t.font(f)
+                        } else {
+                            t
+                        }
+                        .into(),
+                    )
                 };
             }
             markup5ever_rcdom::NodeData::Element {
@@ -81,7 +81,7 @@ impl<
         name: &html5ever::QualName,
         attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
         node: &Node,
-        element: &mut Element<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T, R>,
         data: ChildData,
     ) {
         let name = name.local.to_string();
@@ -107,10 +107,10 @@ impl<
                 draw_children!(self, node, element, data.heading(4));
             }
             "blockquote" => {
-                let mut t = widget::Column::new().into();
+                let mut t = RenderedSpan::None;
                 draw_children!(self, node, &mut t, data);
                 *element = widget::stack!(
-                    widget::row![widget::Space::with_width(10), t],
+                    widget::row![widget::Space::with_width(10), t.render()],
                     widget::vertical_rule(2)
                 )
                 .into();
@@ -121,7 +121,7 @@ impl<
             "a" => {
                 self.draw_link(node, element, &attrs, data);
             }
-            "head" | "br" => {}
+            "head" | "br" | "title" | "meta" => {}
             "img" => {
                 self.draw_image(element, &attrs);
             }
@@ -145,9 +145,9 @@ impl<
                 } else {
                     widget::text("- ")
                 };
-                let mut children: Element<M, T, R> = widget::Column::new().into();
+                let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
                 draw_children!(self, node, &mut children, data);
-                *element = widget::row![bullet, children].into();
+                *element = widget::row![bullet, children.render()].into();
             }
             _ => {
                 *element = widget::text!("[HTML todo: {name}]").into();
@@ -155,7 +155,7 @@ impl<
         }
     }
 
-    fn draw_image(&self, element: &mut Element<'a, M, T, R>, attrs: &[html5ever::Attribute]) {
+    fn draw_image(&self, element: &mut RenderedSpan<'a, M, T, R>, attrs: &[html5ever::Attribute]) {
         if let Some(attr) = attrs.iter().find(|attr| attr.name.local.deref() == "src") {
             let url = attr.value.to_string();
 
@@ -168,17 +168,18 @@ impl<
                 .and_then(|n| n.value.deref().parse::<f32>().ok());
 
             if let Some(func) = self.fn_drawing_image.as_ref() {
-                *element = func(&url, size);
+                *element = func(&url, size).into();
             }
         } else {
-            *element = widget::text("[HTML error: malformed image]]").into();
+            // Error, malformed image
+            *element = RenderedSpan::None;
         }
     }
 
     fn draw_link(
         &self,
         node: &Node,
-        element: &mut Element<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T, R>,
         attrs: &std::cell::Ref<'_, Vec<html5ever::Attribute>>,
         data: ChildData,
     ) {
@@ -189,23 +190,44 @@ impl<
             let url = attr.value.to_string();
             let children_empty = { node.children.borrow().is_empty() };
 
-            let mut children: Element<M, T, R> = widget::Column::new().into();
+            let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
             draw_children!(self, node, &mut children, data);
 
+            let msg = self.fn_clicking_link.as_ref();
             if children_empty {
-                children = widget::column!(widget::text(url.clone())).into();
+                RenderedSpan::Span(link_text::<_, T, R, _>(url.clone(), &url, msg))
+            } else if let Some(text) = children.get_text() {
+                RenderedSpan::Span(link_text::<_, T, R, _>(text, &url, msg))
+            } else {
+                link(children.render(), &url, msg).into()
             }
-            link(children, &url, self.fn_clicking_link.as_ref()).into()
         } else {
-            widget::text("[HTML error: malformed link]]").into()
+            let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
+            draw_children!(self, node, &mut children, data);
+
+            if let Some(text) = children.get_text() {
+                RenderedSpan::Span(widget::span(text).underline(true))
+            } else {
+                link(children.render(), "", Some(&Self::e).filter(|_| false)).into()
+            }
         };
     }
 
-    fn render_children(&self, node: &Node, element: &mut Element<'a, M, T, R>, data: ChildData) {
+    fn e(_: &str) -> M {
+        // This will never run, don't worry
+        panic!()
+    }
+
+    fn render_children(
+        &self,
+        node: &Node,
+        element: &mut RenderedSpan<'a, M, T, R>,
+        data: ChildData,
+    ) {
         let children = node.children.borrow();
 
         let mut column = Vec::new();
-        let mut row = Vec::new();
+        let mut row = RenderedSpan::None;
 
         let mut i = 0;
         for item in children.iter() {
@@ -217,19 +239,19 @@ impl<
             if data.li_ordered_number.is_some() {
                 data.li_ordered_number = Some(i + 1);
             }
-            let mut element = widget::column!().into();
+            let mut element = RenderedSpan::None;
             self.traverse_node(item, &mut element, data);
 
             if is_block_element(item) {
                 if !row.is_empty() {
-                    let mut old_row = Vec::new();
+                    let mut old_row = RenderedSpan::None;
                     std::mem::swap(&mut row, &mut old_row);
                     column.push(old_row);
                 }
 
-                column.push(vec![element]);
+                column.push(element);
             } else {
-                row.push(element);
+                row = row + element;
             }
 
             i += 1;
@@ -239,13 +261,23 @@ impl<
             column.push(row);
         }
 
-        *element = widget::column(
-            column
-                .into_iter()
-                .map(|n| widget::row(n).spacing(5).wrap().into()),
-        )
-        .spacing(5)
-        .into();
+        let len = column.len();
+        let is_empty = column.is_empty() || column.iter().filter(|n| !n.is_empty()).count() == 0;
+
+        *element = if is_empty {
+            RenderedSpan::None
+        } else if len == 1 {
+            column.into_iter().next().unwrap()
+        } else {
+            widget::column(
+                column
+                    .into_iter()
+                    .filter(|n| !n.is_empty())
+                    .map(|n| n.render()),
+            )
+            .spacing(5)
+            .into()
+        };
     }
 }
 
@@ -267,32 +299,35 @@ fn is_block_element(node: &Node) -> bool {
 
     match n {
         "address" | "article" | "aside" | "blockquote" | "canvas" | "dd" | "div" | "dl" | "dt"
-        | "fieldset" | "figcaption" | "figure" | "footer" | "form" | "h1>-<h6" | "header"
-        | "hr" | "li" | "main" | "nav" | "noscript" | "ol" | "p" | "pre" | "section" | "table"
-        | "tfoot" | "ul" | "video" => true,
+        | "fieldset" | "figcaption" | "figure" | "footer" | "form" | "h1" | "h2" | "h3" | "h4"
+        | "h5" | "h6" | "header" | "hr" | "li" | "main" | "nav" | "noscript" | "ol" | "p"
+        | "pre" | "section" | "table" | "tfoot" | "ul" | "video" | "br" => true,
         _ => false,
     }
 }
 
 impl<
         'a,
-        M: Clone + 'a,
+        M: Clone + 'static,
         T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
         R: iced::advanced::text::Renderer + 'a,
     > From<MarkWidget<'a, M, T, R>> for Element<'a, M, T, R>
 {
     fn from(value: MarkWidget<'a, M, T, R>) -> Self {
         let node = &value.state.dom.document;
-        let mut elem: Element<'a, M, T, R> = widget::Column::new().into();
+        let mut elem: RenderedSpan<'a, M, T, R> = widget::Column::new().into();
         _ = value.traverse_node(node, &mut elem, ChildData::default());
-        elem
+        elem.render()
     }
 }
 
 fn clean_whitespace(input: &str) -> String {
-    input
-        .split_whitespace()
-        .filter(|n| !n.is_empty())
-        .collect::<Vec<&str>>()
-        .join(" ")
+    let mut s = input.split_whitespace().collect::<Vec<&str>>().join(" ");
+    if input.ends_with(' ') {
+        s.push(' ');
+    }
+    if input.starts_with(' ') {
+        s.insert(0, ' ');
+    }
+    s
 }
