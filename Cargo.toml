@@ -2,6 +2,14 @@
 name = "frostmark"
 version = "0.1.0"
 edition = "2021"
+authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
+description = "HTML/Markdown renderer for the Iced GUI framework"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/Mrmayman/frostmark"
+documentation = "https://docs.rs/frostmark"
+readme = "README.md"
+keywords = ["gui", "iced", "markdown", "html", "renderer"]
+categories = ["gui"]
 
 [dependencies]
 iced = { version = "0.13", default-features = false, features = ["wgpu", "tiny-skia", "advanced"] }

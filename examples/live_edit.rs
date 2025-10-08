@@ -97,28 +97,25 @@ fn main() {
         .unwrap();
 }
 
-const DEFAULT: &str = "Type your <b>HTML</b> or *Markdown* here!";
+// const DEFAULT: &str = "Type your <b>HTML</b> or *Markdown* here!";
 
-/*
-Here's a cool one you can try:
+const DEFAULT: &str = r"
+<h1>Hello from HTML</h1>
+<p>Here's a paragraph. It should appear on its own line.</p>
+<div>Here's a div. It should also appear on a new line.</div><br>
+<span>Here's a span,</span>
+<b> and here's a bold section. </b>and
+<b>another bold section!</b>
+<hr>
 
+# Hello from Markdown
 
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inline and Block Elements Test</title>
-</head>
-<body>
-    <h1>Testing Block and Inline Elements</h1>
-    <p>This is a block-level element (paragraph). It should appear on its own line.</p>
-    <div>This is another block-level element (div). It should also appear on a new line.</div>
-    <span>This is an inline element (span). It should appear on the same line as the previous text.</span>
-    <b>This is an inline element (bold). It should appear on the same line as the previous span.</b>
-    <i>This is another inline element (italic). It should also appear on the same line as the previous elements.</i>
-    <hr>
-    <p>Notice how the block elements (like paragraphs and divs) create line breaks, whereas inline elements (like span, bold, and italic) stay on the same line.</p>
-</body>
-</html>
-*/
+As Sonic the Hedgehog once said,
+> The problem with being faster than light
+> is that you live in darkness
+
+Welp, gotta buy groceries:
+1. Chilli
+2. Pepper
+3. Sauce
+";
