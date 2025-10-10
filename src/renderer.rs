@@ -1,9 +1,9 @@
-use iced::{widget, Element, Font};
+use iced::{widget, Element};
 use markup5ever_rcdom::Node;
 
 use crate::{
     structs::{ChildDataFlags, MarkWidget, RenderedSpan},
-    widgets::{codeblock, link, link_text},
+    widgets::{link, link_text},
 };
 
 use super::structs::ChildData;
@@ -17,7 +17,11 @@ macro_rules! draw_children {
 impl<
         'a,
         M: Clone + 'static,
-        T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
+        T: widget::button::Catalog
+            + widget::text::Catalog
+            + widget::rule::Catalog
+            + widget::text_editor::Catalog
+            + 'a,
     > MarkWidget<'a, M, T>
 {
     pub(crate) fn traverse_node(
@@ -36,15 +40,18 @@ impl<
                 let size = if weight > 0 { 36 - (weight * 4) } else { 16 };
 
                 *element = if data.flags.contains(ChildDataFlags::MONOSPACE) {
-                    codeblock(
-                        &text,
+                    self.codeblock(
+                        text.to_string(),
                         size,
-                        self.fn_copying_text.as_ref(),
-                        self.font_mono.unwrap_or(Font::MONOSPACE),
+                        !data.flags.contains(ChildDataFlags::KEEP_WHITESPACE),
                     )
-                    .into()
                 } else {
-                    let t = widget::span(clean_whitespace(&text)).size(size);
+                    let t = widget::span(if data.flags.contains(ChildDataFlags::KEEP_WHITESPACE) {
+                        text.to_string()
+                    } else {
+                        clean_whitespace(&text)
+                    })
+                    .size(size);
 
                     RenderedSpan::Spans(vec![if let (true, Some(f)) = (
                         data.flags.contains(ChildDataFlags::BOLD),
@@ -56,12 +63,9 @@ impl<
                     }])
                 };
             }
-            markup5ever_rcdom::NodeData::Element {
-                name,
-                attrs,
-                template_contents: _,
-                mathml_annotation_xml_integration_point: _,
-            } => self.render_html_inner(name, attrs, node, element, data),
+            markup5ever_rcdom::NodeData::Element { name, attrs, .. } => {
+                self.render_html_inner(name, attrs, node, element, data);
+            }
             _ => {}
         }
     }
@@ -196,13 +200,9 @@ impl<
 
             let msg = self.fn_clicking_link.as_ref();
             if children_empty {
-                RenderedSpan::Spans(vec![link_text::<_, iced::Renderer, _>(
-                    url.clone(),
-                    &url,
-                    msg,
-                )])
-            } else if let Some(text) = children.get_text() {
-                RenderedSpan::Spans(vec![link_text::<_, iced::Renderer, _>(text, &url, msg)])
+                RenderedSpan::Spans(vec![link_text(widget::span(url.clone()), &url, msg)])
+            } else if let RenderedSpan::Spans(n) = children {
+                RenderedSpan::Spans(n.into_iter().map(|n| link_text(n, &url, msg)).collect())
             } else {
                 link(children.render(), &url, msg).into()
             }
@@ -210,8 +210,8 @@ impl<
             let mut children: RenderedSpan<M, T> = widget::Column::new().into();
             draw_children!(self, node, &mut children, data);
 
-            if let Some(text) = children.get_text() {
-                RenderedSpan::Spans(vec![widget::span(text).underline(true)])
+            if let RenderedSpan::Spans(n) = children {
+                RenderedSpan::Spans(n.into_iter().map(|n| n.underline(true)).collect())
             } else {
                 link(children.render(), "", Some(&Self::e).filter(|_| false)).into()
             }
@@ -279,6 +279,29 @@ impl<
             .into()
         };
     }
+
+    fn codeblock(&self, code: String, size: u16, inline: bool) -> RenderedSpan<'a, M, T> {
+        if let (false, Some(state), Some(select)) = (
+            inline,
+            self.state.selection_state.get(&code),
+            self.fn_select.clone(),
+        ) {
+            let queue = self.state.selection_queue.clone();
+            widget::text_editor(state)
+                .size(size)
+                .padding(0)
+                .font(self.font_mono)
+                .on_action(move |action| {
+                    if !action.is_edit() {
+                        queue.lock().unwrap().push_back((code.clone(), action));
+                    }
+                    select()
+                })
+                .into()
+        } else {
+            RenderedSpan::Spans(vec![widget::span(code).size(size).font(self.font_mono)])
+        }
+    }
 }
 
 fn is_node_useless(node: &Node) -> bool {
@@ -340,7 +363,11 @@ fn is_block_element(node: &Node) -> bool {
 impl<
         'a,
         M: Clone + 'static,
-        T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
+        T: widget::button::Catalog
+            + widget::text::Catalog
+            + widget::rule::Catalog
+            + widget::text_editor::Catalog
+            + 'a,
     > From<MarkWidget<'a, M, T>> for Element<'a, M, T>
 {
     fn from(value: MarkWidget<'a, M, T>) -> Self {

@@ -1,8 +1,15 @@
-use std::ops::Add;
+use std::{
+    collections::{HashMap, VecDeque},
+    ops::Add,
+    sync::{Arc, Mutex},
+};
 
 use bitflags::bitflags;
 use html5ever::{parse_document, tendril::TendrilSink, ParseOpts};
-use iced::{widget, Element, Font};
+use iced::{
+    widget::{self, text_editor::Action},
+    Element, Font,
+};
 use markup5ever_rcdom::RcDom;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -45,6 +52,8 @@ bitflags! {
 
 pub struct MarkState {
     pub(crate) dom: RcDom,
+    pub(crate) selection_state: HashMap<String, widget::text_editor::Content>,
+    pub(crate) selection_queue: Arc<Mutex<VecDeque<(String, Action)>>>,
 }
 
 impl MarkState {
@@ -57,7 +66,14 @@ impl MarkState {
             // Will not panic as reading from &[u8] cannot fail
             .unwrap();
 
-        Self { dom }
+        let mut selection_state = HashMap::new();
+        find_codeblocks(&dom.document, &mut selection_state, false);
+
+        Self {
+            dom,
+            selection_state,
+            selection_queue: Arc::new(Mutex::new(VecDeque::new())),
+        }
     }
 
     #[must_use]
@@ -86,22 +102,57 @@ impl MarkState {
 
         Self::with_html(&html)
     }
+
+    pub fn update(&mut self) {
+        let Some(mut actions) = self.selection_queue.lock().ok() else {
+            return;
+        };
+        for (code, action) in actions.drain(..) {
+            if let Some(n) = self.selection_state.get_mut(&code) {
+                n.perform(action);
+            }
+        }
+    }
+}
+
+fn find_codeblocks(
+    dom: &markup5ever_rcdom::Node,
+    storage: &mut HashMap<String, widget::text_editor::Content>,
+    scan_text: bool,
+) {
+    let borrow = dom.children.borrow();
+    match &dom.data {
+        markup5ever_rcdom::NodeData::Element { name, .. } if &name.local == "code" => {
+            for child in &*borrow {
+                find_codeblocks(child, storage, true);
+            }
+        }
+        markup5ever_rcdom::NodeData::Text { contents } if scan_text => {
+            let contents = contents.borrow().to_string();
+            let v = widget::text_editor::Content::with_text(&contents);
+            storage.insert(contents.clone(), v);
+        }
+        _ => {
+            for child in &*borrow {
+                find_codeblocks(child, storage, scan_text);
+            }
+        }
+    }
 }
 
 type FClickLink<M> = Box<dyn Fn(&str) -> M>;
-type FCopyText<M> = FClickLink<M>;
-
 type FDrawImage<'a, M, T> = Box<dyn Fn(&str, Option<f32>) -> Element<'a, M, T>>;
+type FUpdate<M> = Arc<dyn Fn() -> M>;
 
 pub struct MarkWidget<'a, M, T> {
     pub(crate) state: &'a MarkState,
 
     pub(crate) font: Option<Font>,
-    pub(crate) font_mono: Option<Font>,
+    pub(crate) font_mono: Font,
 
     pub(crate) fn_clicking_link: Option<FClickLink<M>>,
     pub(crate) fn_drawing_image: Option<FDrawImage<'a, M, T>>,
-    pub(crate) fn_copying_text: Option<FCopyText<M>>,
+    pub(crate) fn_select: Option<FUpdate<M>>,
 }
 
 impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
@@ -110,10 +161,10 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
         Self {
             state,
             font: None,
-            font_mono: None,
+            font_mono: Font::MONOSPACE,
             fn_clicking_link: None,
             fn_drawing_image: None,
-            fn_copying_text: None,
+            fn_select: None,
         }
     }
 
@@ -125,28 +176,28 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
 
     #[must_use]
     pub fn font_mono(mut self, font: Font) -> Self {
-        self.font_mono = Some(font);
+        self.font_mono = font;
         self
     }
 
     #[must_use]
-    pub fn on_clicking_link<F: Fn(&str) -> M + 'static>(mut self, f: F) -> Self {
+    pub fn on_clicking_link(mut self, f: impl Fn(&str) -> M + 'static) -> Self {
         self.fn_clicking_link = Some(Box::new(f));
         self
     }
 
     #[must_use]
-    pub fn on_drawing_image<F: Fn(&str, Option<f32>) -> Element<'a, M, T> + 'static>(
+    pub fn on_drawing_image(
         mut self,
-        f: F,
+        f: impl Fn(&str, Option<f32>) -> Element<'a, M, T> + 'static,
     ) -> Self {
         self.fn_drawing_image = Some(Box::new(f));
         self
     }
 
     #[must_use]
-    pub fn on_copying_text<F: Fn(&str) -> M + 'static>(mut self, f: F) -> Self {
-        self.fn_copying_text = Some(Box::new(f));
+    pub fn on_updating_state(mut self, f: impl Fn() -> M + 'static) -> Self {
+        self.fn_select = Some(Arc::new(f));
         self
     }
 }
@@ -191,13 +242,6 @@ where
             RenderedSpan::Spans(spans) => widget::rich_text(spans).into(),
             RenderedSpan::Elem(element, _) => element,
             RenderedSpan::None => widget::Column::new().into(),
-        }
-    }
-
-    pub fn get_text(&self) -> Option<String> {
-        match self {
-            RenderedSpan::Spans(spans) => Some(spans.iter().map(|n| &*n.text).collect()),
-            RenderedSpan::Elem(_, _) | RenderedSpan::None => None,
         }
     }
 }

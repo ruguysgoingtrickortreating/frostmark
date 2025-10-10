@@ -6,29 +6,33 @@ use iced::{
 
 #[derive(Debug, Clone)]
 enum Message {
-    Nothing,
     EditedText(widget::text_editor::Action),
     ToggleMarkdown(bool),
+    /// For updating the HTML renderer state.
+    /// You can add an id or enum here if you have multiple states
+    UpdateState,
 }
 
 struct App {
+    state: MarkState,
+    editor: Content,
     /// Whether to additionally support markdown
     /// alongside HTML
     markdown: bool,
-    state: MarkState,
-    editor: Content,
 }
 
 impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Nothing => {}
             Message::EditedText(a) => {
                 let is_edit = a.is_edit();
                 self.editor.perform(a);
                 if is_edit {
                     self.reparse();
                 }
+            }
+            Message::UpdateState => {
+                self.state.update();
             }
             Message::ToggleMarkdown(t) => {
                 self.markdown = t;
@@ -62,10 +66,7 @@ impl App {
             widget::row![
                 editor,
                 widget::scrollable(
-                    MarkWidget::new(&self.state)
-                        // These methods are optional
-                        .on_copying_text(|_| Message::Nothing)
-                        .on_clicking_link(|_| Message::Nothing)
+                    MarkWidget::new(&self.state).on_updating_state(|| Message::UpdateState)
                 )
                 .width(Length::Fill),
             ]

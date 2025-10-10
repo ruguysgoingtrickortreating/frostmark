@@ -1,25 +1,4 @@
-use iced::{
-    advanced,
-    widget::{self, text::IntoFragment},
-    Element,
-};
-
-pub fn codeblock<'a, F, M, T>(
-    code: &'_ str,
-    size: u16,
-    m: Option<&F>,
-    mono: iced::Font,
-) -> widget::Button<'a, M, T>
-where
-    M: 'a,
-    T: 'a + widget::button::Catalog + widget::text::Catalog,
-    F: Fn(&str) -> M,
-{
-    let t = widget::text(code.to_owned()).size(size);
-    widget::button(t.font(mono))
-        .on_press_maybe(m.map(|n| n(code)))
-        .padding(2)
-}
+use iced::{advanced, widget, Element, Font};
 
 pub fn link<'a, M: 'a, T, R: advanced::Renderer + 'a, F>(
     e: impl Into<Element<'a, M, T, R>>,
@@ -35,17 +14,15 @@ where
         .padding(0)
 }
 
-pub fn link_text<'a, M: 'a, R: advanced::Renderer + advanced::text::Renderer + 'a, F>(
-    e: impl IntoFragment<'a>,
+pub fn link_text<'a, M: 'a, F>(
+    e: widget::text::Span<'a, M, Font>,
     url: &str,
     msg: Option<&F>,
-) -> widget::text::Span<'a, M, R::Font>
+) -> widget::text::Span<'a, M, Font>
 where
     F: Fn(&str) -> M,
 {
-    widget::span(e)
-        .link_maybe(msg.map(|n| n(url)))
-        .underline(true)
+    e.link_maybe(msg.map(|n| n(url))).underline(true)
 }
 
 pub fn underline<'a, M: 'a, T: widget::rule::Catalog + 'a, R: advanced::Renderer + 'a>(

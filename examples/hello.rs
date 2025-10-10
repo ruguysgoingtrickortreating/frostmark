@@ -2,24 +2,19 @@ use frostmark::{MarkState, MarkWidget};
 use iced::{widget, Element, Task};
 
 #[derive(Debug, Clone)]
-enum Message {
-    Nothing,
-}
+enum Message {}
 
 struct App {
     state: MarkState,
 }
 
 impl App {
-    fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::Nothing => {}
-        }
+    fn update(&mut self, _: Message) -> Task<Message> {
         Task::none()
     }
 
     fn view(&self) -> Element<'_, Message> {
-        widget::container(MarkWidget::new(&self.state).on_copying_text(|_| Message::Nothing))
+        widget::container(MarkWidget::new(&self.state))
             .padding(10)
             .into()
     }
