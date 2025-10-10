@@ -1,16 +1,9 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    ops::Add,
-    sync::{Arc, Mutex},
-};
+use std::{ops::Add, sync::Arc};
 
 use bitflags::bitflags;
-use html5ever::{parse_document, tendril::TendrilSink, ParseOpts};
-use iced::{
-    widget::{self, text_editor::Action},
-    Element, Font,
-};
-use markup5ever_rcdom::RcDom;
+use iced::{widget, Element, Font};
+
+use crate::state::MarkState;
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct ChildData {
@@ -49,100 +42,24 @@ bitflags! {
     }
 }
 
-pub struct MarkState {
-    pub(crate) dom: RcDom,
-    pub(crate) selection_state: HashMap<String, widget::text_editor::Content>,
-    pub(crate) selection_queue: Arc<Mutex<VecDeque<(String, Action)>>>,
-}
-
-impl MarkState {
-    #[must_use]
-    #[allow(clippy::missing_panics_doc)] // Will never panic
-    pub fn with_html(input: &str) -> Self {
-        let dom = parse_document(RcDom::default(), ParseOpts::default())
-            .from_utf8()
-            .read_from(&mut input.as_bytes())
-            // Will not panic as reading from &[u8] cannot fail
-            .unwrap();
-
-        let mut selection_state = HashMap::new();
-        find_codeblocks(&dom.document, &mut selection_state, false);
-
-        Self {
-            dom,
-            selection_state,
-            selection_queue: Arc::new(Mutex::new(VecDeque::new())),
-        }
-    }
-
-    #[must_use]
-    pub fn with_html_and_markdown(input: &str) -> Self {
-        let html = comrak::markdown_to_html(
-            input,
-            &comrak::Options {
-                extension: comrak::ExtensionOptions {
-                    strikethrough: true,
-                    cjk_friendly_emphasis: true,
-                    tasklist: true,
-                    superscript: true,
-                    subscript: true,
-                    underline: true,
-                    ..Default::default()
-                },
-                parse: comrak::ParseOptions::default(),
-                render: comrak::RenderOptions {
-                    // Our renderer doesn't have the
-                    // vulnerabilities of a browser
-                    unsafe_: true,
-                    ..Default::default()
-                },
-            },
-        );
-
-        Self::with_html(&html)
-    }
-
-    pub fn update(&mut self) {
-        let Some(mut actions) = self.selection_queue.lock().ok() else {
-            return;
-        };
-        for (code, action) in actions.drain(..) {
-            if let Some(n) = self.selection_state.get_mut(&code) {
-                n.perform(action);
-            }
-        }
-    }
-}
-
-fn find_codeblocks(
-    dom: &markup5ever_rcdom::Node,
-    storage: &mut HashMap<String, widget::text_editor::Content>,
-    scan_text: bool,
-) {
-    let borrow = dom.children.borrow();
-    match &dom.data {
-        markup5ever_rcdom::NodeData::Element { name, .. } if &name.local == "code" => {
-            for child in &*borrow {
-                find_codeblocks(child, storage, true);
-            }
-        }
-        markup5ever_rcdom::NodeData::Text { contents } if scan_text => {
-            let contents = contents.borrow().to_string();
-            let v = widget::text_editor::Content::with_text(&contents);
-            storage.insert(contents.clone(), v);
-        }
-        _ => {
-            for child in &*borrow {
-                find_codeblocks(child, storage, scan_text);
-            }
-        }
-    }
-}
-
 type FClickLink<M> = Box<dyn Fn(&str) -> M>;
 type FDrawImage<'a, M, T> = Box<dyn Fn(&str, Option<f32>) -> Element<'a, M, T>>;
 type FUpdate<M> = Arc<dyn Fn() -> M>;
 
+/// The widget to be constructed every frame.
+///
+/// ```no_run
+/// // inside your view function
+/// # fn e() {
+/// # let m =
+/// MarkWidget::new(&self.mark_state)
+/// # ; }
+/// ```
+///
+/// You can put this inside a [`iced::widget::Container`]
+/// or [`iced::widget::Column`] or anywhere you like.
+///
+/// There are many methods you can call on this to customize its behavior.
 pub struct MarkWidget<'a, M, T> {
     pub(crate) state: &'a MarkState,
 
@@ -155,6 +72,9 @@ pub struct MarkWidget<'a, M, T> {
 }
 
 impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
+    /// Creates a new [`MarkWidget`] from the given [`MarkState`].
+    ///
+    /// The state would usually be stored inside your main application state struct.
     #[must_use]
     pub fn new(state: &'a MarkState) -> Self {
         Self {
@@ -167,24 +87,73 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
         }
     }
 
+    /// Sets the default font when rendering documents.
+    ///
+    /// > **Note**: Variations of this font will be
+    /// > used for bold and italic.
     #[must_use]
     pub fn font(mut self, font: Font) -> Self {
         self.font = font;
         self
     }
 
+    /// Sets the monospaced font used
+    /// for rendering codeblocks and code snippets.
     #[must_use]
     pub fn font_mono(mut self, font: Font) -> Self {
         self.font_mono = font;
         self
     }
 
+    /// When clicking a link, send a message to handle it.
+    ///
+    /// ```no_run
+    /// # fn e() {
+    /// MarkWidget::new(&self.mark_state)
+    ///     .on_clicking_link(|url| Message::OpenLink(url))
+    /// # ; }
+    /// ```
     #[must_use]
     pub fn on_clicking_link(mut self, f: impl Fn(&str) -> M + 'static) -> Self {
         self.fn_clicking_link = Some(Box::new(f));
         self
     }
 
+    /// Customizes how images are drawn in your widget.
+    ///
+    /// ```ignore
+    /// MarkWidget::new(&self.mark_state)
+    ///     .on_drawing_image(|url, size| {
+    ///         // Pseudocode example to give you an idea
+    ///         if let Some(image) = self.cache.get(url) {
+    ///             let i = iced::widget::image(image.clone());
+    ///             if let Some(size) = size {
+    ///                 i.width(size)
+    ///             } else {
+    ///                 i
+    ///             }.into()
+    ///         } else {
+    ///             widget::Column::new().into()
+    ///         }
+    ///     })
+    /// ```
+    ///
+    /// # Parameters for the closure
+    /// - `url: &str`: The URL of the image to draw.
+    /// - `size: Option<f32>`: An optional heuristic size for the image.
+    ///
+    /// The closure should return some element representing the rendered image,
+    /// or maybe a placeholder if no image is found.
+    ///
+    /// # Notes:
+    /// - **Image URL List**: To get a list of image URLs in the document,
+    ///   use [MarkState::find_image_links].
+    /// - **Custom Downloader**: You’ll need to implement your own
+    ///   downloader and use the [image](https://crates.io/crates/image) crate
+    ///   to parse the image and store it as an `iced::widget::image::Handle`.
+    /// - **No Built-in Support**: Frostmark does not provide built-in
+    ///   HTTP client functionality or async runtimes for image downloading,
+    ///   as these are out of scope. The app must handle these responsibilities.
     #[must_use]
     pub fn on_drawing_image(
         mut self,
@@ -194,6 +163,37 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
         self
     }
 
+    /// Passes a message when the internal state of the document is updated.
+    ///
+    /// # Usage:
+    ///
+    /// When the internal state of the document changes,
+    /// this callback is triggered, and you should call [`MarkState::update`]
+    /// in your `update()` function to apply the changes.
+    ///
+    /// ```no_run
+    /// # struct App {}
+    /// # enum Message { UpdateDocument }
+    /// # impl App { fn e() {
+    /// MarkWidget::new(&self.state)
+    ///     .on_updating_state(|| Message::UpdateDocument)
+    /// # }
+    ///
+    /// // later...
+    /// fn update(&mut self, msg: Message) {
+    ///     match msg {
+    ///         Message::UpdateDocument => self.mark_state.update(),
+    /// # _ => {}
+    ///         // ...
+    ///     }
+    /// }
+    /// # }
+    /// ```
+    ///
+    /// # Notes:
+    /// - This feature is optional but recommended.
+    ///   Without it, some features like code block selection may be disabled.
+    /// - It takes in a closure that returns the message to pass when the state is updated.
     #[must_use]
     pub fn on_updating_state(mut self, f: impl Fn() -> M + 'static) -> Self {
         self.fn_select = Some(Arc::new(f));
