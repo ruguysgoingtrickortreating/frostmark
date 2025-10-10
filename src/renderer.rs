@@ -1,4 +1,4 @@
-use iced::{widget, Element};
+use iced::{widget, Element, Font};
 use markup5ever_rcdom::Node;
 
 use crate::{
@@ -45,26 +45,39 @@ impl<
                         size,
                         !data.flags.contains(ChildDataFlags::KEEP_WHITESPACE),
                     )
+                    .into()
                 } else {
-                    let t = widget::span(if data.flags.contains(ChildDataFlags::KEEP_WHITESPACE) {
-                        text.to_string()
-                    } else {
-                        clean_whitespace(&text)
-                    })
-                    .size(size);
+                    let mut t =
+                        widget::span(if data.flags.contains(ChildDataFlags::KEEP_WHITESPACE) {
+                            text.to_string()
+                        } else {
+                            clean_whitespace(&text)
+                        })
+                        .size(size);
 
-                    RenderedSpan::Spans(vec![if let (true, Some(f)) = (
-                        data.flags.contains(ChildDataFlags::BOLD),
-                        self.font, // TODO
-                    ) {
-                        t.font(f)
-                    } else {
+                    RenderedSpan::Spans(vec![{
+                        t = t.font({
+                            let mut f = Font { ..self.font };
+                            if data.flags.contains(ChildDataFlags::BOLD) {
+                                f.weight = iced::font::Weight::Bold;
+                            }
+                            if data.flags.contains(ChildDataFlags::ITALIC) {
+                                f.style = iced::font::Style::Italic;
+                            }
+                            f
+                        });
+                        if data.flags.contains(ChildDataFlags::STRIKETHROUGH) {
+                            t = t.strikethrough(true);
+                        }
+                        if data.flags.contains(ChildDataFlags::UNDERLINE) {
+                            t = t.underline(true);
+                        }
                         t
                     }])
                 };
             }
             markup5ever_rcdom::NodeData::Element { name, attrs, .. } => {
-                self.render_html_inner(name, attrs, node, element, data);
+                self.render_html_inner(name, attrs, node, element, data)
             }
             _ => {}
         }
@@ -114,9 +127,25 @@ impl<
                 )
                 .into();
             }
-            "b" | "strong" | "em" | "i" => {
+
+            "em" | "i" => {
+                draw_children!(self, node, element, data.insert(ChildDataFlags::ITALIC));
+            }
+            "b" | "strong" => {
                 draw_children!(self, node, element, data.insert(ChildDataFlags::BOLD));
             }
+            "u" => {
+                draw_children!(self, node, element, data.insert(ChildDataFlags::UNDERLINE));
+            }
+            "del" | "s" | "strike" => {
+                draw_children!(
+                    self,
+                    node,
+                    element,
+                    data.insert(ChildDataFlags::STRIKETHROUGH)
+                );
+            }
+
             "a" => {
                 self.draw_link(node, element, &attrs, data);
             }
@@ -132,17 +161,12 @@ impl<
                 *element = widget::horizontal_rule(4.0).into();
             }
             "ul" => {
-                let mut data = data.insert(ChildDataFlags::INDENT);
+                let mut data = data;
                 data.li_ordered_number = None;
                 draw_children!(self, node, element, data);
             }
             "ol" => {
-                draw_children!(
-                    self,
-                    node,
-                    element,
-                    data.insert(ChildDataFlags::INDENT).ordered()
-                );
+                draw_children!(self, node, element, data.ordered());
             }
             "li" => {
                 let bullet = if let Some(num) = data.li_ordered_number {

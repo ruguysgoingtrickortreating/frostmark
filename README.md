@@ -23,8 +23,6 @@ MarkState::with_html(YOUR_TEXT)
 ```rust
 widget::container( // just an example
     MarkWidget::new(&self.mark_state)
-        // The below methods are optional
-        .on_copying_text(|_| Message::Nothing),
 )
 .padding(10)
 ```
@@ -38,7 +36,7 @@ You can find runnable examples in [`examples/`](examples/)
 
 ```rust
 use frostmark::{MarkState, MarkWidget};
-use iced::{widget, Element, Font, Task};
+use iced::{widget, Element, Task};
 
 #[derive(Debug, Clone)]
 enum Message {}
@@ -48,7 +46,7 @@ struct App {
 }
 
 impl App {
-    fn update(&mut self, message: Message) -> Task<Message> {
+    fn update(&mut self, _: Message) -> Task<Message> {
         Task::none()
     }
 
@@ -72,7 +70,7 @@ fn main() {
         .unwrap();
 }
 
-const YOUR_TEXT: &str = "Some *Markdown* or <b>HTML</b> text here!";
+const YOUR_TEXT: &str = "Hello from **markdown** and <b>HTML</b>!";
 ```
 
 </details>
@@ -91,10 +89,11 @@ Rendering happens right inside `impl Into<Element> for MarkWidget`.
 
 ## Roadmap
 
-- [ ] More examples (images, links, text copying)
-- [ ] Better widget styling options.
-- [ ] Quick “render and cache” API
-- [ ] Support for underline, strikethrough, sub/superscript
+- More examples (images, links, text copying)
+- Better widget styling options.
+- Quick “render and cache” API
+- Support for sub/superscript
+- Ensure stability, and publish on [crates.io](https://crates.io/)
 
 # Contributing
 

@@ -44,9 +44,8 @@ bitflags! {
         const ITALIC = 1 << 1;
         const UNDERLINE = 1 << 2;
         const STRIKETHROUGH = 1 << 3;
-        const INDENT = 1 << 4;
-        const KEEP_WHITESPACE = 1 << 5;
-        const MONOSPACE = 1 << 6;
+        const KEEP_WHITESPACE = 1 << 4;
+        const MONOSPACE = 1 << 5;
     }
 }
 
@@ -147,7 +146,7 @@ type FUpdate<M> = Arc<dyn Fn() -> M>;
 pub struct MarkWidget<'a, M, T> {
     pub(crate) state: &'a MarkState,
 
-    pub(crate) font: Option<Font>,
+    pub(crate) font: Font,
     pub(crate) font_mono: Font,
 
     pub(crate) fn_clicking_link: Option<FClickLink<M>>,
@@ -160,7 +159,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     pub fn new(state: &'a MarkState) -> Self {
         Self {
             state,
-            font: None,
+            font: Font::DEFAULT,
             font_mono: Font::MONOSPACE,
             fn_clicking_link: None,
             fn_drawing_image: None,
@@ -170,7 +169,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
 
     #[must_use]
     pub fn font(mut self, font: Font) -> Self {
-        self.font = Some(font);
+        self.font = font;
         self
     }
 

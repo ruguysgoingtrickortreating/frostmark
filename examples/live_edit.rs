@@ -99,9 +99,8 @@ const DEFAULT: &str = r"
 <h1>Hello from HTML</h1>
 <p>Here's a paragraph. It should appear on its own line.</p>
 <div>Here's a div. It should also appear on a new line.</div><br>
-<span>Here's a span,</span>
-<b> and here's a bold section. </b>and
-<b>another bold section!</b>
+Here's<b> bold text, </b>and
+<i> italics!</i>
 <hr>
 
 # Hello from Markdown
@@ -110,7 +109,7 @@ As Sonic the Hedgehog once said,
 > The problem with being faster than light
 > is that you live in darkness
 
-Welp, gotta buy groceries:
+Anyway here's a basic list:
 1. Chilli
 2. Pepper
 3. Sauce
