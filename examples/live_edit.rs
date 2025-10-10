@@ -1,7 +1,7 @@
 use frostmark::{MarkState, MarkWidget};
 use iced::{
     widget::{self, text_editor::Content},
-    Element, Font, Length, Task,
+    Element, Length, Task,
 };
 
 #[derive(Debug, Clone)]
@@ -64,11 +64,6 @@ impl App {
                 widget::scrollable(
                     MarkWidget::new(&self.state)
                         // These methods are optional
-                        .font_bold(Font {
-                            weight: iced::font::Weight::ExtraBold,
-                            ..Default::default()
-                        })
-                        .font_mono(Font::MONOSPACE)
                         .on_copying_text(|_| Message::Nothing)
                         .on_clicking_link(|_| Message::Nothing)
                 )

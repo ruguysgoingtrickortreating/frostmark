@@ -1,4 +1,4 @@
-use iced::{widget, Element};
+use iced::{widget, Element, Font};
 use markup5ever_rcdom::Node;
 
 use crate::{
@@ -18,13 +18,12 @@ impl<
         'a,
         M: Clone + 'static,
         T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
-        R: iced::advanced::text::Renderer + 'a,
-    > MarkWidget<'a, M, T, R>
+    > MarkWidget<'a, M, T>
 {
     pub(crate) fn traverse_node(
         &self,
         node: &Node,
-        element: &mut RenderedSpan<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T>,
         data: ChildData,
     ) {
         match &node.data {
@@ -37,13 +36,19 @@ impl<
                 let size = if weight > 0 { 36 - (weight * 4) } else { 16 };
 
                 *element = if data.flags.contains(ChildDataFlags::MONOSPACE) {
-                    codeblock(&text, size, self.fn_copying_text.as_ref(), self.font_mono).into()
+                    codeblock(
+                        &text,
+                        size,
+                        self.fn_copying_text.as_ref(),
+                        self.font_mono.unwrap_or(Font::MONOSPACE),
+                    )
+                    .into()
                 } else {
                     let t = widget::span(clean_whitespace(&text)).size(size);
 
                     RenderedSpan::Spans(vec![if let (true, Some(f)) = (
                         data.flags.contains(ChildDataFlags::BOLD),
-                        self.font_bold.or(self.font_mono).or(self.font),
+                        self.font, // TODO
                     ) {
                         t.font(f)
                     } else {
@@ -66,7 +71,7 @@ impl<
         name: &html5ever::QualName,
         attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
         node: &Node,
-        element: &mut RenderedSpan<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T>,
         data: ChildData,
     ) {
         let name = name.local.to_string();
@@ -134,7 +139,7 @@ impl<
                 } else {
                     widget::text("- ")
                 };
-                let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
+                let mut children: RenderedSpan<M, T> = widget::Column::new().into();
                 draw_children!(self, node, &mut children, data);
                 *element = widget::row![bullet, children.render()].into();
             }
@@ -144,7 +149,7 @@ impl<
         }
     }
 
-    fn draw_image(&self, element: &mut RenderedSpan<'a, M, T, R>, attrs: &[html5ever::Attribute]) {
+    fn draw_image(&self, element: &mut RenderedSpan<'a, M, T>, attrs: &[html5ever::Attribute]) {
         if let Some(attr) = attrs.iter().find(|attr| &*attr.name.local == "src") {
             let url = attr.value.to_string();
 
@@ -168,7 +173,7 @@ impl<
     fn draw_link(
         &self,
         node: &Node,
-        element: &mut RenderedSpan<'a, M, T, R>,
+        element: &mut RenderedSpan<'a, M, T>,
         attrs: &std::cell::Ref<'_, Vec<html5ever::Attribute>>,
         data: ChildData,
     ) {
@@ -179,19 +184,23 @@ impl<
             let url = attr.value.to_string();
             let children_empty = { node.children.borrow().is_empty() };
 
-            let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
+            let mut children: RenderedSpan<M, T> = widget::Column::new().into();
             draw_children!(self, node, &mut children, data);
 
             let msg = self.fn_clicking_link.as_ref();
             if children_empty {
-                RenderedSpan::Spans(vec![link_text::<_, R, _>(url.clone(), &url, msg)])
+                RenderedSpan::Spans(vec![link_text::<_, iced::Renderer, _>(
+                    url.clone(),
+                    &url,
+                    msg,
+                )])
             } else if let Some(text) = children.get_text() {
-                RenderedSpan::Spans(vec![link_text::<_, R, _>(text, &url, msg)])
+                RenderedSpan::Spans(vec![link_text::<_, iced::Renderer, _>(text, &url, msg)])
             } else {
                 link(children.render(), &url, msg).into()
             }
         } else {
-            let mut children: RenderedSpan<M, T, R> = widget::Column::new().into();
+            let mut children: RenderedSpan<M, T> = widget::Column::new().into();
             draw_children!(self, node, &mut children, data);
 
             if let Some(text) = children.get_text() {
@@ -207,12 +216,7 @@ impl<
         panic!()
     }
 
-    fn render_children(
-        &self,
-        node: &Node,
-        element: &mut RenderedSpan<'a, M, T, R>,
-        data: ChildData,
-    ) {
+    fn render_children(&self, node: &Node, element: &mut RenderedSpan<'a, M, T>, data: ChildData) {
         let children = node.children.borrow();
 
         let mut column = Vec::new();
@@ -330,12 +334,11 @@ impl<
         'a,
         M: Clone + 'static,
         T: widget::button::Catalog + widget::text::Catalog + widget::rule::Catalog + 'a,
-        R: iced::advanced::text::Renderer + 'a,
-    > From<MarkWidget<'a, M, T, R>> for Element<'a, M, T, R>
+    > From<MarkWidget<'a, M, T>> for Element<'a, M, T>
 {
-    fn from(value: MarkWidget<'a, M, T, R>) -> Self {
+    fn from(value: MarkWidget<'a, M, T>) -> Self {
         let node = &value.state.dom.document;
-        let mut elem: RenderedSpan<'a, M, T, R> = widget::Column::new().into();
+        let mut elem: RenderedSpan<'a, M, T> = widget::Column::new().into();
         value.traverse_node(node, &mut elem, ChildData::default());
         elem.render()
     }

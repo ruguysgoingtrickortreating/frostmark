@@ -1,5 +1,5 @@
 use frostmark::{MarkState, MarkWidget};
-use iced::{widget, Element, Font, Task};
+use iced::{widget, Element, Task};
 
 #[derive(Debug, Clone)]
 enum Message {
@@ -19,17 +19,9 @@ impl App {
     }
 
     fn view(&self) -> Element<'_, Message> {
-        widget::container(
-            MarkWidget::new(&self.state)
-                .font_bold(Font {
-                    weight: iced::font::Weight::ExtraBold,
-                    ..Default::default()
-                })
-                .font_mono(Font::MONOSPACE)
-                .on_copying_text(|_| Message::Nothing),
-        )
-        .padding(10)
-        .into()
+        widget::container(MarkWidget::new(&self.state).on_copying_text(|_| Message::Nothing))
+            .padding(10)
+            .into()
     }
 }
 

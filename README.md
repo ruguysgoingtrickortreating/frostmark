@@ -24,11 +24,6 @@ MarkState::with_html(YOUR_TEXT)
 widget::container( // just an example
     MarkWidget::new(&self.mark_state)
         // The below methods are optional
-        .font_bold(Font {
-            weight: iced::font::Weight::ExtraBold,
-            ..Default::default()
-        })
-        .font_mono(Font::MONOSPACE)
         .on_copying_text(|_| Message::Nothing),
 )
 .padding(10)
@@ -46,9 +41,7 @@ use frostmark::{MarkState, MarkWidget};
 use iced::{widget, Element, Font, Task};
 
 #[derive(Debug, Clone)]
-enum Message {
-    Nothing,
-}
+enum Message {}
 
 struct App {
     state: MarkState,
@@ -56,25 +49,13 @@ struct App {
 
 impl App {
     fn update(&mut self, message: Message) -> Task<Message> {
-        match message {
-            Message::Nothing => {}
-        }
         Task::none()
     }
 
     fn view(&self) -> Element<'_, Message> {
-        widget::container(
-            MarkWidget::new(&self.state)
-                .font_bold(Font {
-                    weight: iced::font::Weight::ExtraBold,
-                    ..Default::default()
-                })
-                // There are other methods to
-                // set up mono fonts, links, images,
-                // and text copying
-        )
-        .padding(10)
-        .into()
+        widget::container(MarkWidget::new(&self.state))
+            .padding(10)
+            .into()
     }
 }
 

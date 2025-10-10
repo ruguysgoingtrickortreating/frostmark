@@ -2,7 +2,7 @@ use std::ops::Add;
 
 use bitflags::bitflags;
 use html5ever::{parse_document, tendril::TendrilSink, ParseOpts};
-use iced::{advanced, widget, Element};
+use iced::{widget, Element, Font};
 use markup5ever_rcdom::RcDom;
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -91,30 +91,25 @@ impl MarkState {
 type FClickLink<M> = Box<dyn Fn(&str) -> M>;
 type FCopyText<M> = FClickLink<M>;
 
-type FDrawImage<'a, M, T, R> = Box<dyn Fn(&str, Option<f32>) -> Element<'a, M, T, R>>;
+type FDrawImage<'a, M, T> = Box<dyn Fn(&str, Option<f32>) -> Element<'a, M, T>>;
 
-pub struct MarkWidget<'a, M, T, R: iced::advanced::text::Renderer> {
+pub struct MarkWidget<'a, M, T> {
     pub(crate) state: &'a MarkState,
 
-    pub(crate) font: Option<R::Font>,
-    pub(crate) font_bold: Option<R::Font>,
-    pub(crate) font_mono: Option<R::Font>,
+    pub(crate) font: Option<Font>,
+    pub(crate) font_mono: Option<Font>,
 
     pub(crate) fn_clicking_link: Option<FClickLink<M>>,
-    pub(crate) fn_drawing_image: Option<FDrawImage<'a, M, T, R>>,
+    pub(crate) fn_drawing_image: Option<FDrawImage<'a, M, T>>,
     pub(crate) fn_copying_text: Option<FCopyText<M>>,
 }
 
-impl<'a, M: 'a, T: 'a, R> MarkWidget<'a, M, T, R>
-where
-    R: iced::advanced::text::Renderer + 'a,
-{
+impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     #[must_use]
     pub fn new(state: &'a MarkState) -> Self {
         Self {
             state,
             font: None,
-            font_bold: None,
             font_mono: None,
             fn_clicking_link: None,
             fn_drawing_image: None,
@@ -123,19 +118,13 @@ where
     }
 
     #[must_use]
-    pub fn font(mut self, font: R::Font) -> Self {
+    pub fn font(mut self, font: Font) -> Self {
         self.font = Some(font);
         self
     }
 
     #[must_use]
-    pub fn font_bold(mut self, font: R::Font) -> Self {
-        self.font_bold = Some(font);
-        self
-    }
-
-    #[must_use]
-    pub fn font_mono(mut self, font: R::Font) -> Self {
+    pub fn font_mono(mut self, font: Font) -> Self {
         self.font_mono = Some(font);
         self
     }
@@ -147,7 +136,7 @@ where
     }
 
     #[must_use]
-    pub fn on_drawing_image<F: Fn(&str, Option<f32>) -> Element<'a, M, T, R> + 'static>(
+    pub fn on_drawing_image<F: Fn(&str, Option<f32>) -> Element<'a, M, T> + 'static>(
         mut self,
         f: F,
     ) -> Self {
@@ -162,13 +151,13 @@ where
     }
 }
 
-pub enum RenderedSpan<'a, M, T, R: advanced::text::Renderer> {
-    Spans(Vec<widget::text::Span<'a, M, R::Font>>),
-    Elem(Element<'a, M, T, R>, Emp),
+pub enum RenderedSpan<'a, M, T> {
+    Spans(Vec<widget::text::Span<'a, M, Font>>),
+    Elem(Element<'a, M, T>, Emp),
     None,
 }
 
-impl<M, T, R: advanced::text::Renderer> std::fmt::Debug for RenderedSpan<'_, M, T, R> {
+impl<M, T> std::fmt::Debug for RenderedSpan<'_, M, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RenderedSpan::Spans(spans) => {
@@ -183,10 +172,9 @@ impl<M, T, R: advanced::text::Renderer> std::fmt::Debug for RenderedSpan<'_, M, 
     }
 }
 
-impl<'a, M, T, R> RenderedSpan<'a, M, T, R>
+impl<'a, M, T> RenderedSpan<'a, M, T>
 where
     M: Clone + 'static,
-    R: advanced::text::Renderer + 'a,
     T: widget::text::Catalog + 'a,
 {
     pub fn is_empty(&self) -> bool {
@@ -198,7 +186,7 @@ where
     }
 
     // btw it supports clone so it's fine if we dont ref
-    pub fn render(self) -> Element<'a, M, T, R> {
+    pub fn render(self) -> Element<'a, M, T> {
         match self {
             RenderedSpan::Spans(spans) => widget::rich_text(spans).into(),
             RenderedSpan::Elem(element, _) => element,
@@ -214,10 +202,9 @@ where
     }
 }
 
-impl<'a, M, T, R> Add for RenderedSpan<'a, M, T, R>
+impl<'a, M, T> Add for RenderedSpan<'a, M, T>
 where
     M: Clone + 'static,
-    R: advanced::text::Renderer + 'a,
     T: widget::text::Catalog + 'a,
 {
     type Output = Self;
@@ -263,12 +250,11 @@ where
     }
 }
 
-impl<'a, M, T, R, E> From<E> for RenderedSpan<'a, M, T, R>
+impl<'a, M, T, E> From<E> for RenderedSpan<'a, M, T>
 where
     M: Clone,
-    R: advanced::text::Renderer + 'a,
     T: widget::text::Catalog + 'a,
-    E: Into<Element<'a, M, T, R>>,
+    E: Into<Element<'a, M, T>>,
 {
     fn from(value: E) -> Self {
         Self::Elem(value.into(), Emp::NonEmpty)

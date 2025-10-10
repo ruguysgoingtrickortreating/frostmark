@@ -4,26 +4,21 @@ use iced::{
     Element,
 };
 
-pub fn codeblock<'a, F, M, T, R>(
+pub fn codeblock<'a, F, M, T>(
     code: &'_ str,
     size: u16,
     m: Option<&F>,
-    mono: Option<R::Font>,
-) -> widget::Button<'a, M, T, R>
+    mono: iced::Font,
+) -> widget::Button<'a, M, T>
 where
-    R: advanced::text::Renderer + 'a,
     M: 'a,
     T: 'a + widget::button::Catalog + widget::text::Catalog,
     F: Fn(&str) -> M,
 {
     let t = widget::text(code.to_owned()).size(size);
-    widget::button(if let Some(mono) = mono {
-        t.font(mono)
-    } else {
-        t
-    })
-    .on_press_maybe(m.map(|n| n(code)))
-    .padding(2)
+    widget::button(t.font(mono))
+        .on_press_maybe(m.map(|n| n(code)))
+        .padding(2)
 }
 
 pub fn link<'a, M: 'a, T, R: advanced::Renderer + 'a, F>(
