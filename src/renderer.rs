@@ -8,12 +8,6 @@ use crate::{
 
 use super::structs::ChildData;
 
-macro_rules! draw_children {
-    ($s:expr, $node:expr, $element:expr, $child_data:expr) => {
-        $s.render_children($node, $element, $child_data);
-    };
-}
-
 impl<
         'a,
         M: Clone + 'static,
@@ -32,13 +26,21 @@ impl<
         data: ChildData,
     ) {
         match &node.data {
-            markup5ever_rcdom::NodeData::Document => {
-                draw_children!(self, node, element, data);
-            }
+            markup5ever_rcdom::NodeData::Document => self.render_children(node, element, data),
+
             markup5ever_rcdom::NodeData::Text { contents } => {
                 let text = contents.borrow();
                 let weight = data.heading_weight;
-                let size = if weight > 0 { 36 - (weight * 4) } else { 16 };
+                let size = match weight {
+                    1 => 32,
+                    2 => 24,
+                    3 => 20,
+                    4 => 18,
+                    5 => 14,
+                    6 => 12,
+                    7 => 10,
+                    _ => 16,
+                };
 
                 *element = if data.flags.contains(ChildDataFlags::MONOSPACE) {
                     self.codeblock(
@@ -57,7 +59,7 @@ impl<
 
                     RenderedSpan::Spans(vec![{
                         t = t.font({
-                            let mut f = Font { ..self.font };
+                            let mut f = self.font;
                             if data.flags.contains(ChildDataFlags::BOLD) {
                                 f.weight = iced::font::Weight::Bold;
                             }
@@ -77,7 +79,7 @@ impl<
                 };
             }
             markup5ever_rcdom::NodeData::Element { name, attrs, .. } => {
-                self.render_html_inner(name, attrs, node, element, data)
+                self.render_html_inner(name, attrs, node, element, data);
             }
             _ => {}
         }
@@ -93,49 +95,35 @@ impl<
     ) {
         let name = name.local.to_string();
         let attrs = attrs.borrow();
-        let block_element = is_block_element(node);
 
+        let block_element = is_block_element(node);
         if block_element {
-            if let Some(align) = get_attr(&attrs, "align") {
-                if let "right" | "center" | "centre" = align {
-                    data.alignment = Some(if align == "right" {
-                        ChildAlignment::Right
-                    } else {
-                        ChildAlignment::Center
-                    });
-                } else if let "left" = align {
-                    data.alignment = None;
-                }
-            }
+            alignment_read(&mut data, &attrs);
         }
 
         match name.as_str() {
-            "center" | "kbd" | "span" | "html" | "body" | "p" | "div" => {
-                draw_children!(self, node, element, data);
+            "kbd" | "span" | "html" | "body" | "p" | "div" => {
+                self.render_children(node, element, data)
+            }
+            "center" => {
+                data.alignment = Some(ChildAlignment::Center);
+                self.render_children(node, element, data);
             }
             "pre" => {
-                draw_children!(
-                    self,
-                    node,
-                    element,
-                    data.insert(ChildDataFlags::KEEP_WHITESPACE)
-                );
+                self.render_children(node, element, data.insert(ChildDataFlags::KEEP_WHITESPACE))
             }
-            "details" | "summary" | "h1" => {
-                draw_children!(self, node, element, data.heading(1));
-            }
-            "h2" => {
-                draw_children!(self, node, element, data.heading(2));
-            }
-            "h3" => {
-                draw_children!(self, node, element, data.heading(3));
-            }
-            "h4" => {
-                draw_children!(self, node, element, data.heading(4));
-            }
+
+            "details" | "summary" | "h1" => self.render_children(node, element, data.heading(1)),
+            "h2" => self.render_children(node, element, data.heading(2)),
+            "h3" => self.render_children(node, element, data.heading(3)),
+            "h4" => self.render_children(node, element, data.heading(4)),
+            "h5" => self.render_children(node, element, data.heading(5)),
+            "h6" => self.render_children(node, element, data.heading(6)),
+            "sub" => self.render_children(node, element, data.heading(7)),
+
             "blockquote" => {
                 let mut t = RenderedSpan::None;
-                draw_children!(self, node, &mut t, data);
+                self.render_children(node, &mut t, data);
                 *element = widget::stack!(
                     widget::row![widget::Space::with_width(10), t.render()],
                     widget::vertical_rule(2)
@@ -143,29 +131,23 @@ impl<
                 .into();
             }
 
-            "em" | "i" => {
-                draw_children!(self, node, element, data.insert(ChildDataFlags::ITALIC));
-            }
             "b" | "strong" => {
-                draw_children!(self, node, element, data.insert(ChildDataFlags::BOLD));
+                self.render_children(node, element, data.insert(ChildDataFlags::BOLD))
             }
-            "u" => {
-                draw_children!(self, node, element, data.insert(ChildDataFlags::UNDERLINE));
-            }
+            "em" | "i" => self.render_children(node, element, data.insert(ChildDataFlags::ITALIC)),
+            "u" => self.render_children(node, element, data.insert(ChildDataFlags::UNDERLINE)),
             "del" | "s" | "strike" => {
-                draw_children!(
-                    self,
-                    node,
-                    element,
-                    data.insert(ChildDataFlags::STRIKETHROUGH)
-                );
+                self.render_children(node, element, data.insert(ChildDataFlags::STRIKETHROUGH))
             }
+            "code" => self.render_children(node, element, data.insert(ChildDataFlags::MONOSPACE)),
 
-            "a" => {
-                self.draw_link(node, element, &attrs, data);
-            }
+            "a" => self.draw_link(node, element, &attrs, data),
+            "img" => self.draw_image(element, &attrs),
+
             "br" => *element = widget::Column::new().into(),
+            "hr" => *element = widget::horizontal_rule(4.0).into(),
             "head" | "title" | "meta" => {}
+
             "input" => {
                 *element = match get_attr(&attrs, "type").unwrap_or("text") {
                     "checkbox" => {
@@ -175,23 +157,12 @@ impl<
                     kind => widget::text!("[HTML todo: <input type=\"{kind}\">]").into(),
                 }
             }
-            "img" => {
-                self.draw_image(element, &attrs);
-            }
-            "code" => {
-                draw_children!(self, node, element, data.insert(ChildDataFlags::MONOSPACE));
-            }
-            "hr" => {
-                *element = widget::horizontal_rule(4.0).into();
-            }
+
             "ul" => {
-                let mut data = data;
                 data.li_ordered_number = None;
-                draw_children!(self, node, element, data);
+                self.render_children(node, element, data);
             }
-            "ol" => {
-                draw_children!(self, node, element, data.ordered());
-            }
+            "ol" => self.render_children(node, element, data.ordered()),
             "li" => {
                 let bullet = if let Some(num) = data.li_ordered_number {
                     widget::text!("{num}. ")
@@ -199,11 +170,15 @@ impl<
                     widget::text("- ")
                 };
                 let mut children: RenderedSpan<M, T> = widget::Column::new().into();
-                draw_children!(self, node, &mut children, data);
+                self.render_children(node, &mut children, data);
                 *element = widget::row![bullet, children.render()].into();
             }
             _ => {
-                *element = widget::text!("[HTML todo: {name}]").into();
+                *element = RenderedSpan::Spans(vec![widget::span(format!("<{name} (TODO)>"))
+                    .font(Font {
+                        weight: iced::font::Weight::Bold,
+                        ..self.font
+                    })]);
             }
         }
 
@@ -248,7 +223,7 @@ impl<
             let children_empty = { node.children.borrow().is_empty() };
 
             let mut children: RenderedSpan<M, T> = widget::Column::new().into();
-            draw_children!(self, node, &mut children, data);
+            self.render_children(node, &mut children, data);
 
             let msg = self.fn_clicking_link.as_ref();
             if children_empty {
@@ -264,7 +239,7 @@ impl<
             }
         } else {
             let mut children: RenderedSpan<M, T> = widget::Column::new().into();
-            draw_children!(self, node, &mut children, data);
+            self.render_children(node, &mut children, data);
 
             if let RenderedSpan::Spans(n) = children {
                 RenderedSpan::Spans(n.into_iter().map(|n| n.underline(true)).collect())
@@ -357,6 +332,22 @@ impl<
         } else {
             RenderedSpan::Spans(vec![widget::span(code).size(size).font(self.font_mono)])
         }
+    }
+}
+
+fn alignment_read(data: &mut ChildData, attrs: &[html5ever::Attribute]) {
+    let Some(align) = get_attr(attrs, "align") else {
+        return;
+    };
+
+    if let "right" | "center" | "centre" = align {
+        data.alignment = Some(if align == "right" {
+            ChildAlignment::Right
+        } else {
+            ChildAlignment::Center
+        });
+    } else if align == "left" {
+        data.alignment = None;
     }
 }
 
