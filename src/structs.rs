@@ -50,25 +50,30 @@ type FUpdate<M> = Arc<dyn Fn() -> M>;
 ///
 /// ```no_run
 /// // inside your view function
-/// # fn e() {
-/// # let m =
+/// # use frostmark::{MarkWidget, MarkState};
+/// # struct E { mark_state: MarkState }
+/// # #[derive(Clone)]
+/// # enum Message {}
+/// # impl E { fn e(&self) {
+/// # let m: MarkWidget<'_, Message>  =
 /// MarkWidget::new(&self.mark_state)
-/// # ; }
+/// # ; } }
 /// ```
 ///
 /// You can put this inside a [`iced::widget::Container`]
 /// or [`iced::widget::Column`] or anywhere you like.
+/// To render this, call `Into<iced::Element<_>>`.
 ///
 /// There are many methods you can call on this to customize its behavior.
-pub struct MarkWidget<'a, M, T> {
+pub struct MarkWidget<'a, Message, Theme = iced::Theme> {
     pub(crate) state: &'a MarkState,
 
     pub(crate) font: Font,
     pub(crate) font_mono: Font,
 
-    pub(crate) fn_clicking_link: Option<FClickLink<M>>,
-    pub(crate) fn_drawing_image: Option<FDrawImage<'a, M, T>>,
-    pub(crate) fn_select: Option<FUpdate<M>>,
+    pub(crate) fn_clicking_link: Option<FClickLink<Message>>,
+    pub(crate) fn_drawing_image: Option<FDrawImage<'a, Message, Theme>>,
+    pub(crate) fn_select: Option<FUpdate<Message>>,
 }
 
 impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
@@ -108,10 +113,14 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     /// When clicking a link, send a message to handle it.
     ///
     /// ```no_run
-    /// # fn e() {
+    /// # use frostmark::{MarkWidget, MarkState};
+    /// # #[derive(Clone)]
+    /// # enum Message { OpenLink(String) }
+    /// # struct E {mark_state: MarkState} impl E { fn e(&self) {
+    /// # let m: MarkWidget<'_, Message> =
     /// MarkWidget::new(&self.mark_state)
-    ///     .on_clicking_link(|url| Message::OpenLink(url))
-    /// # ; }
+    ///     .on_clicking_link(|url| Message::OpenLink(url.to_owned()))
+    /// # ; } }
     /// ```
     #[must_use]
     pub fn on_clicking_link(mut self, f: impl Fn(&str) -> M + 'static) -> Self {
@@ -172,22 +181,27 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     /// in your `update()` function to apply the changes.
     ///
     /// ```no_run
-    /// # struct App {}
-    /// # enum Message { UpdateDocument }
-    /// # impl App { fn e() {
-    /// MarkWidget::new(&self.state)
-    ///     .on_updating_state(|| Message::UpdateDocument)
-    /// # }
+    /// # use frostmark::{MarkWidget, MarkState};
+    /// struct App { mark_state: MarkState }
+    /// #[derive(Clone)]
+    /// enum Message { UpdateDocument }
     ///
-    /// // later...
-    /// fn update(&mut self, msg: Message) {
-    ///     match msg {
-    ///         Message::UpdateDocument => self.mark_state.update(),
+    /// impl App {
+    ///     fn view(&self) -> iced::Element<'_, Message> {
+    ///         iced::widget::container(
+    ///             MarkWidget::new(&self.mark_state)
+    ///                 .on_updating_state(|| Message::UpdateDocument)
+    ///         ).padding(10).into()
+    ///     }
+    ///
+    ///     fn update(&mut self, msg: Message) {
+    ///         match msg {
+    ///             Message::UpdateDocument => self.mark_state.update(),
     /// # _ => {}
-    ///         // ...
+    ///             // ...
+    ///         }
     ///     }
     /// }
-    /// # }
     /// ```
     ///
     /// # Notes:

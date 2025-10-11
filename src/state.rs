@@ -15,6 +15,7 @@ use markup5ever_rcdom::RcDom;
 /// - Create a new one if the document changes
 ///
 /// ```no_run
+/// # use frostmark::MarkState;
 /// # const YOUR_TEXT: &str = "";
 /// # fn e() { let m =
 /// MarkState::with_html_and_markdown(YOUR_TEXT)

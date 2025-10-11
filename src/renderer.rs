@@ -45,7 +45,6 @@ impl<
                         size,
                         !data.flags.contains(ChildDataFlags::KEEP_WHITESPACE),
                     )
-                    .into()
                 } else {
                     let mut t =
                         widget::span(if data.flags.contains(ChildDataFlags::KEEP_WHITESPACE) {

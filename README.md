@@ -12,7 +12,7 @@ Render rich text in your `iced` app at lightning-fast speeds using plain HTML or
 
 1. Create a `MarkState` and **store it in your application state**.
 
-```rust
+```txt
 MarkState::with_html_and_markdown(YOUR_TEXT)
 // or if you just want HTML
 MarkState::with_html(YOUR_TEXT)
@@ -20,8 +20,8 @@ MarkState::with_html(YOUR_TEXT)
 
 2. In your `view` function use a `MarkWidget`.
 
-```rust
-widget::container( // just an example
+```txt
+iced::widget::container( // just an example
     MarkWidget::new(&self.mark_state)
 )
 .padding(10)
