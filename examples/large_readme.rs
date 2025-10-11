@@ -92,7 +92,7 @@ impl App {
 }
 
 fn main() {
-    iced::application("Hello World", App::update, App::view)
+    iced::application("Large Readme", App::update, App::view)
         .run_with(|| {
             let mut app = App {
                 state: MarkState::with_html_and_markdown(YOUR_TEXT),

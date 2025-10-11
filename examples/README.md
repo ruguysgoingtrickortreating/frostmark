@@ -35,6 +35,10 @@ cargo run --example image --features="iced/image iced/tokio"
 Renders the README of a large project ([QuantumLauncher](https://github.com/Mrmayman/quantumlauncher))
 with this library, also demonstrates SVG image rendering.
 
+Side-by-side comparison with frostmark (left) and VSCode (right):
+
+![](assets/large_readme.png)
+
 ```sh
 cargo run --example large_readme --features="iced/image iced/tokio iced/svg"
 ```

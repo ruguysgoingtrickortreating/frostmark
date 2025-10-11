@@ -9,6 +9,7 @@ use crate::state::MarkState;
 pub struct ChildData {
     pub heading_weight: u16,
     pub flags: ChildDataFlags,
+    pub alignment: Option<ChildAlignment>,
 
     pub li_ordered_number: Option<usize>,
 }
@@ -27,6 +28,21 @@ impl ChildData {
     pub fn ordered(mut self) -> Self {
         self.li_ordered_number = Some(1);
         self
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ChildAlignment {
+    Center,
+    Right,
+}
+
+impl Into<iced::Alignment> for ChildAlignment {
+    fn into(self) -> iced::Alignment {
+        match self {
+            ChildAlignment::Center => iced::Alignment::Center,
+            ChildAlignment::Right => iced::Alignment::End,
+        }
     }
 }
 

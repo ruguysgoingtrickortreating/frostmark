@@ -112,7 +112,7 @@ impl App {
 }
 
 fn main() {
-    iced::application("Hello World", App::update, App::view)
+    iced::application("Image Loading", App::update, App::view)
         .run_with(|| {
             let mut app = App {
                 editor: Content::with_text(DEFAULT),

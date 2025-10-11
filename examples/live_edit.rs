@@ -79,7 +79,7 @@ impl App {
 }
 
 fn main() {
-    iced::application("Hello World", App::update, App::view)
+    iced::application("Live Preview Editing", App::update, App::view)
         .run_with(|| {
             (
                 App {

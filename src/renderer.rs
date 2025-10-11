@@ -2,7 +2,7 @@ use iced::{widget, Element, Font};
 use markup5ever_rcdom::Node;
 
 use crate::{
-    structs::{ChildDataFlags, ImageInfo, MarkWidget, RenderedSpan},
+    structs::{ChildAlignment, ChildDataFlags, ImageInfo, MarkWidget, RenderedSpan},
     widgets::{link, link_text},
 };
 
@@ -89,10 +89,25 @@ impl<
         attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
         node: &Node,
         element: &mut RenderedSpan<'a, M, T>,
-        data: ChildData,
+        mut data: ChildData,
     ) {
         let name = name.local.to_string();
         let attrs = attrs.borrow();
+        let block_element = is_block_element(node);
+
+        if block_element {
+            if let Some(align) = get_attr(&attrs, "align") {
+                if let "right" | "center" | "centre" = align {
+                    data.alignment = Some(if align == "right" {
+                        ChildAlignment::Right
+                    } else {
+                        ChildAlignment::Center
+                    });
+                } else if let "left" = align {
+                    data.alignment = None;
+                }
+            }
+        }
 
         match name.as_str() {
             "center" | "kbd" | "span" | "html" | "body" | "p" | "div" => {
@@ -151,6 +166,15 @@ impl<
             }
             "br" => *element = widget::Column::new().into(),
             "head" | "title" | "meta" => {}
+            "input" => {
+                *element = match get_attr(&attrs, "type").unwrap_or("text") {
+                    "checkbox" => {
+                        let checked = attrs.iter().any(|attr| &*attr.name.local == "checked");
+                        widget::checkbox("", checked).into()
+                    }
+                    kind => widget::text!("[HTML todo: <input type=\"{kind}\">]").into(),
+                }
+            }
             "img" => {
                 self.draw_image(element, &attrs);
             }
@@ -181,6 +205,15 @@ impl<
             _ => {
                 *element = widget::text!("[HTML todo: {name}]").into();
             }
+        }
+
+        if let (true, Some(align)) = (block_element, data.alignment) {
+            let elem = std::mem::take(element);
+            let align: iced::Alignment = align.into();
+            *element = widget::column![elem.render()]
+                .width(iced::Length::Fill)
+                .align_x(align)
+                .into();
         }
     }
 
