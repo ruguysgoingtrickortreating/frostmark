@@ -103,14 +103,14 @@ impl<
 
         match name.as_str() {
             "kbd" | "span" | "html" | "body" | "p" | "div" => {
-                self.render_children(node, element, data)
+                self.render_children(node, element, data);
             }
             "center" => {
                 data.alignment = Some(ChildAlignment::Center);
                 self.render_children(node, element, data);
             }
             "pre" => {
-                self.render_children(node, element, data.insert(ChildDataFlags::KEEP_WHITESPACE))
+                self.render_children(node, element, data.insert(ChildDataFlags::KEEP_WHITESPACE));
             }
 
             "details" | "summary" | "h1" => self.render_children(node, element, data.heading(1)),
@@ -132,12 +132,12 @@ impl<
             }
 
             "b" | "strong" => {
-                self.render_children(node, element, data.insert(ChildDataFlags::BOLD))
+                self.render_children(node, element, data.insert(ChildDataFlags::BOLD));
             }
             "em" | "i" => self.render_children(node, element, data.insert(ChildDataFlags::ITALIC)),
             "u" => self.render_children(node, element, data.insert(ChildDataFlags::UNDERLINE)),
             "del" | "s" | "strike" => {
-                self.render_children(node, element, data.insert(ChildDataFlags::STRIKETHROUGH))
+                self.render_children(node, element, data.insert(ChildDataFlags::STRIKETHROUGH));
             }
             "code" => self.render_children(node, element, data.insert(ChildDataFlags::MONOSPACE)),
 
