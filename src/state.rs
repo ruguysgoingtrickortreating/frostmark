@@ -78,6 +78,7 @@ impl MarkState {
                     superscript: true,
                     subscript: true,
                     underline: true,
+                    table: true,
                     ..Default::default()
                 },
                 parse: comrak::ParseOptions::default(),

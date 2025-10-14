@@ -1,6 +1,6 @@
 [package]
 name = "frostmark"
-version = "0.1.0"
+version = "0.2.0-dev"
 edition = "2021"
 authors = ["Mrmayman <navneetkrishna22@gmail.com>"]
 description = "HTML/Markdown renderer for the Iced GUI framework"
@@ -31,7 +31,7 @@ reqwest = { version = "0.12", default-features = false, features = [
 
 [features]
 default = ["markdown", "iced-wgpu", "iced-tiny-skia"]
-markdown = ["comrak"]
+markdown = ["dep:comrak"]
 iced-wgpu = ["iced/wgpu"]
 iced-tiny-skia = ["iced/tiny-skia"]
 

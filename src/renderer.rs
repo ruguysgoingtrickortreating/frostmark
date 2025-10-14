@@ -113,7 +113,7 @@ impl<
                 self.render_children(node, element, data.insert(ChildDataFlags::KEEP_WHITESPACE));
             }
 
-            "details" | "summary" | "h1" => self.render_children(node, element, data.heading(1)),
+            "summary" | "h1" => self.render_children(node, element, data.heading(1)),
             "h2" => self.render_children(node, element, data.heading(2)),
             "h3" => self.render_children(node, element, data.heading(3)),
             "h4" => self.render_children(node, element, data.heading(4)),
@@ -121,6 +121,18 @@ impl<
             "h6" => self.render_children(node, element, data.heading(6)),
             "sub" => self.render_children(node, element, data.heading(7)),
 
+            "details" => {
+                let mut children = RenderedSpan::None;
+                self.render_children(node, &mut children, data);
+                *element = widget::column![
+                    widget::horizontal_rule(1),
+                    children.render(),
+                    widget::horizontal_rule(1),
+                ]
+                .padding(10)
+                .spacing(10)
+                .into();
+            }
             "blockquote" => {
                 let mut t = RenderedSpan::None;
                 self.render_children(node, &mut t, data);
@@ -442,11 +454,15 @@ impl<
 
 fn clean_whitespace(input: &str) -> String {
     let mut s = input.split_whitespace().collect::<Vec<&str>>().join(" ");
-    if input.ends_with(' ') {
-        s.push(' ');
+    if let Some(last) = input.chars().last() {
+        if last.is_whitespace() {
+            s.push(last);
+        }
     }
-    if input.starts_with(' ') {
-        s.insert(0, ' ');
+    if let Some(first) = input.chars().next() {
+        if first.is_whitespace() {
+            s.insert(0, first);
+        }
     }
     s
 }
