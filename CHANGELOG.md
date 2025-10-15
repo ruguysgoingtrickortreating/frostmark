@@ -1,19 +1,20 @@
 # 0.2.0
 
+(for **iced 0.13.x**)
+
 ## Added
 
-- `<details>` / `<summary>` dropdowns
+- Dropdown support: `<details>` / `<summary>`
 
 ## Changed
 
-- iced's `wgpu` and `tiny-skia` backends can now be toggled through `iced-*` backend crate features
+- iced's `wgpu` and `tiny-skia` backends now togglable via `iced-*` crate features
 
 ### State updating
 
-- `MarkWidget::on_updating_state` now takes in a `Fn(UpdateMsg) -> Message`.
-- `MarkState::update` now takes in a `UpdateMsg`.
+- `MarkWidget::on_updating_state` now accepts a `Fn(UpdateMsg) -> Message`.
+- `MarkState::update` now accepts a `UpdateMsg`.
 - Wrap `UpdateMsg` in your message type and pass it to the update function.
-- This was done to support dropdowns and clean up code
 
 Example:
 
@@ -39,4 +40,17 @@ Example:
 ## Fixed
 
 - Space/whitespace issues in formatted text
-- Broken details/summary handling
+
+---
+
+# 0.1.0
+
+(for **iced 0.13.x**)
+
+This has:
+
+- Bold/Italic/Underline/Strikethrough/Monospace/Subscript
+- Code blocks with text selection, Quotes
+- Headings, `<hr>`, left/center/right alignment
+- Images (bring-your-own-handler)
+- A few examples and basic documentation

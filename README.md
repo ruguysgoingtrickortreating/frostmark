@@ -12,10 +12,15 @@ Render rich text in your `iced` app at lightning-fast speeds using plain HTML or
 
 1. Create a `MarkState` and **store it in your application state**.
 
-```txt
-MarkState::with_html_and_markdown(YOUR_TEXT)
+```rust
+use frostmark::MarkState;
+
+let text = "Hello from **markdown** and <b>HTML</b>!";
+
+let state = MarkState::with_html_and_markdown(text);
 // or if you just want HTML
-MarkState::with_html(YOUR_TEXT)
+let state = MarkState::with_html(text);
+// put this in your App struct
 ```
 
 2. In your `view` function use a `MarkWidget`.
@@ -100,10 +105,8 @@ Rendering happens right inside `impl Into<Element> for MarkWidget`.
 
 ## Roadmap
 
+- Support for more elements (eg: superscript, table)
 - Better widget styling options.
-- Quick “render and cache” API
-- Support for more elements (eg: superscript)
-- Ensure stability, and publish on [crates.io](https://crates.io/)
 
 # Contributing
 
