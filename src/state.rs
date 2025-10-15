@@ -1,11 +1,10 @@
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    sync::{Arc, Mutex},
-};
+use std::collections::{HashMap, HashSet};
 
 use html5ever::{tendril::TendrilSink, ParseOpts};
-use iced::widget::{self, text_editor::Action};
+use iced::widget;
 use markup5ever_rcdom::RcDom;
+
+use crate::structs::{UpdateMsg, UpdateMsgKind};
 
 /// The state of the document.
 ///
@@ -27,8 +26,9 @@ use markup5ever_rcdom::RcDom;
 /// ```
 pub struct MarkState {
     pub(crate) dom: RcDom,
+
     pub(crate) selection_state: HashMap<String, widget::text_editor::Content>,
-    pub(crate) selection_queue: Arc<Mutex<VecDeque<(String, Action)>>>,
+    pub(crate) dropdown_state: HashMap<usize, bool>,
 }
 
 impl MarkState {
@@ -49,12 +49,20 @@ impl MarkState {
             .unwrap();
 
         let mut selection_state = HashMap::new();
-        find_codeblocks(&dom.document, &mut selection_state, false);
+        let mut dropdown_state = HashMap::new();
+        let mut dropdown_counter = 0;
+        find_state(
+            &dom.document,
+            &mut selection_state,
+            &mut dropdown_state,
+            &mut dropdown_counter,
+            false,
+        );
 
         Self {
             dom,
             selection_state,
-            selection_queue: Arc::new(Mutex::new(VecDeque::new())),
+            dropdown_state,
         }
     }
 
@@ -101,13 +109,17 @@ impl MarkState {
     /// It currently handles the update of text selection
     /// within code blocks, but additional use cases may be
     /// supported in the future.
-    pub fn update(&mut self) {
-        let Some(mut actions) = self.selection_queue.lock().ok() else {
-            return;
-        };
-        for (code, action) in actions.drain(..) {
-            if let Some(n) = self.selection_state.get_mut(&code) {
-                n.perform(action);
+    pub fn update(&mut self, action: UpdateMsg) {
+        match action.kind {
+            UpdateMsgKind::TextEditor(code, action) => {
+                if !action.is_edit() {
+                    if let Some(n) = self.selection_state.get_mut(&code) {
+                        n.perform(action);
+                    }
+                }
+            }
+            UpdateMsgKind::DetailsToggle(id, action) => {
+                self.dropdown_state.insert(id, action);
             }
         }
     }
@@ -127,26 +139,53 @@ impl MarkState {
     }
 }
 
-fn find_codeblocks(
+fn find_state(
     node: &markup5ever_rcdom::Node,
-    storage: &mut HashMap<String, widget::text_editor::Content>,
+    selection_state: &mut HashMap<String, widget::text_editor::Content>,
+    dropdown_state: &mut HashMap<usize, bool>,
+    dropdown_counter: &mut usize,
     scan_text: bool,
 ) {
     let borrow = node.children.borrow();
     match &node.data {
         markup5ever_rcdom::NodeData::Element { name, .. } if &name.local == "code" => {
             for child in &*borrow {
-                find_codeblocks(child, storage, true);
+                find_state(
+                    child,
+                    selection_state,
+                    dropdown_state,
+                    dropdown_counter,
+                    true,
+                );
+            }
+        }
+        markup5ever_rcdom::NodeData::Element { name, .. } if &name.local == "details" => {
+            dropdown_state.insert(*dropdown_counter, false);
+            *dropdown_counter += 1;
+            for child in &*borrow {
+                find_state(
+                    child,
+                    selection_state,
+                    dropdown_state,
+                    dropdown_counter,
+                    false,
+                );
             }
         }
         markup5ever_rcdom::NodeData::Text { contents } if scan_text => {
             let contents = contents.borrow().to_string();
             let v = widget::text_editor::Content::with_text(&contents);
-            storage.insert(contents.clone(), v);
+            selection_state.insert(contents.clone(), v);
         }
         _ => {
             for child in &*borrow {
-                find_codeblocks(child, storage, scan_text);
+                find_state(
+                    child,
+                    selection_state,
+                    dropdown_state,
+                    dropdown_counter,
+                    scan_text,
+                );
             }
         }
     }

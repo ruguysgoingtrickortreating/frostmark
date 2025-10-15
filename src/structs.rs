@@ -1,7 +1,10 @@
 use std::{ops::Add, sync::Arc};
 
 use bitflags::bitflags;
-use iced::{widget, Element, Font};
+use iced::{
+    widget::{self, text_editor},
+    Element, Font,
+};
 
 use crate::state::MarkState;
 
@@ -55,12 +58,43 @@ bitflags! {
         const STRIKETHROUGH = 1 << 3;
         const KEEP_WHITESPACE = 1 << 4;
         const MONOSPACE = 1 << 5;
+        const SKIP_SUMMARY = 1 << 6;
     }
+}
+
+/// The message that's sent when a widget is updated.
+///
+/// ```ignore
+/// enum Message {
+///     UpdateState,
+///     UpdateState(frostmark::UpdateMsg),
+///     // ...
+/// }
+///
+/// // in view function
+/// MarkWidget::new(&state)
+///     .on_updating_state(|action| Message::UpdateState(action))
+///
+/// // in update function
+/// match message {
+///     Message::UpdateState(action) => self.state.update(action),
+///     // ...
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct UpdateMsg {
+    pub(crate) kind: UpdateMsgKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum UpdateMsgKind {
+    TextEditor(String, text_editor::Action),
+    DetailsToggle(usize, bool),
 }
 
 type FClickLink<M> = Box<dyn Fn(String) -> M>;
 type FDrawImage<'a, M, T> = Box<dyn Fn(ImageInfo) -> Element<'static, M, T> + 'a>;
-type FUpdate<M> = Arc<dyn Fn() -> M>;
+type FUpdate<M> = Arc<dyn Fn(UpdateMsg) -> M>;
 
 /// The widget to be constructed every frame.
 ///
@@ -89,7 +123,9 @@ pub struct MarkWidget<'a, Message, Theme = iced::Theme> {
 
     pub(crate) fn_clicking_link: Option<FClickLink<Message>>,
     pub(crate) fn_drawing_image: Option<FDrawImage<'a, Message, Theme>>,
-    pub(crate) fn_select: Option<FUpdate<Message>>,
+    pub(crate) fn_update: Option<FUpdate<Message>>,
+
+    pub(crate) current_dropdown_id: usize,
 }
 
 impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
@@ -104,7 +140,8 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
             font_mono: Font::MONOSPACE,
             fn_clicking_link: None,
             fn_drawing_image: None,
-            fn_select: None,
+            fn_update: None,
+            current_dropdown_id: 0,
         }
     }
 
@@ -232,8 +269,8 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     ///   Without it, some features like code block selection may be disabled.
     /// - It takes in a closure that returns the message to pass when the state is updated.
     #[must_use]
-    pub fn on_updating_state(mut self, f: impl Fn() -> M + 'static) -> Self {
-        self.fn_select = Some(Arc::new(f));
+    pub fn on_updating_state(mut self, f: impl Fn(UpdateMsg) -> M + 'static) -> Self {
+        self.fn_update = Some(Arc::new(f));
         self
     }
 }

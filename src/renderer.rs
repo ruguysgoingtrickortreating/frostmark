@@ -1,9 +1,12 @@
-use iced::{widget, Element, Font};
-use markup5ever_rcdom::Node;
+use iced::{widget, Element, Font, Padding};
+use markup5ever_rcdom::{Node, NodeData};
 
 use crate::{
-    structs::{ChildAlignment, ChildDataFlags, ImageInfo, MarkWidget, RenderedSpan},
-    widgets::{link, link_text},
+    structs::{
+        ChildAlignment, ChildDataFlags, ImageInfo, MarkWidget, RenderedSpan, UpdateMsg,
+        UpdateMsgKind,
+    },
+    widgets::{link, link_text, underline},
 };
 
 use super::structs::ChildData;
@@ -20,7 +23,7 @@ impl<
     > MarkWidget<'a, M, T>
 {
     pub(crate) fn traverse_node(
-        &self,
+        &mut self,
         node: &Node,
         element: &mut RenderedSpan<'a, M, T>,
         data: ChildData,
@@ -86,7 +89,7 @@ impl<
     }
 
     fn render_html_inner(
-        &self,
+        &mut self,
         name: &html5ever::QualName,
         attrs: &std::cell::RefCell<Vec<html5ever::Attribute>>,
         node: &Node,
@@ -102,7 +105,7 @@ impl<
         }
 
         match name.as_str() {
-            "kbd" | "span" | "html" | "body" | "p" | "div" => {
+            "summary" | "kbd" | "span" | "html" | "body" | "p" | "div" => {
                 self.render_children(node, element, data);
             }
             "center" => {
@@ -113,7 +116,7 @@ impl<
                 self.render_children(node, element, data.insert(ChildDataFlags::KEEP_WHITESPACE));
             }
 
-            "summary" | "h1" => self.render_children(node, element, data.heading(1)),
+            "h1" => self.render_children(node, element, data.heading(1)),
             "h2" => self.render_children(node, element, data.heading(2)),
             "h3" => self.render_children(node, element, data.heading(3)),
             "h4" => self.render_children(node, element, data.heading(4)),
@@ -121,18 +124,6 @@ impl<
             "h6" => self.render_children(node, element, data.heading(6)),
             "sub" => self.render_children(node, element, data.heading(7)),
 
-            "details" => {
-                let mut children = RenderedSpan::None;
-                self.render_children(node, &mut children, data);
-                *element = widget::column![
-                    widget::horizontal_rule(1),
-                    children.render(),
-                    widget::horizontal_rule(1),
-                ]
-                .padding(10)
-                .spacing(10)
-                .into();
-            }
             "blockquote" => {
                 let mut t = RenderedSpan::None;
                 self.render_children(node, &mut t, data);
@@ -153,6 +144,7 @@ impl<
             }
             "code" => self.render_children(node, element, data.insert(ChildDataFlags::MONOSPACE)),
 
+            "details" => self.draw_details(node, element, data),
             "a" => self.draw_link(node, element, &attrs, data),
             "img" => self.draw_image(element, &attrs),
 
@@ -204,6 +196,90 @@ impl<
         }
     }
 
+    fn draw_details(&mut self, node: &Node, element: &mut RenderedSpan<'a, M, T>, data: ChildData) {
+        let mut regular_children = RenderedSpan::None;
+        *element = if let (Some(update), Some(state)) = (
+            self.fn_update.clone(),
+            self.state
+                .dropdown_state
+                .get(&self.current_dropdown_id)
+                .copied(),
+        ) {
+            let summary = self.get_summary_elements(node, data);
+            self.render_children(
+                node,
+                &mut regular_children,
+                data.insert(ChildDataFlags::SKIP_SUMMARY),
+            );
+
+            let umsg = UpdateMsg {
+                kind: UpdateMsgKind::DetailsToggle(self.current_dropdown_id, !state),
+            };
+
+            let link = if let RenderedSpan::Spans(n) = summary {
+                RenderedSpan::Spans(
+                    n.into_iter()
+                        .map(|n| n.link(update(umsg.clone())).underline(true))
+                        .collect(),
+                )
+                .render()
+            } else {
+                widget::mouse_area(underline(summary.render()))
+                    .on_press(update(umsg))
+                    .into()
+            };
+
+            widget::stack![
+                widget::column![link]
+                    .push_maybe(state.then_some(regular_children.render()))
+                    .padding(Padding::default().left(20).bottom(5)),
+                widget::column![if state {
+                    widget::text("V").size(12)
+                } else {
+                    widget::text(">").size(14)
+                }]
+                .push_maybe(state.then_some(widget::vertical_rule(1)))
+                .spacing(5)
+                .padding(Padding::default().left(5).top(if state { 5 } else { 0 })),
+            ]
+            .into()
+        } else {
+            self.render_children(node, &mut regular_children, data);
+            widget::column![
+                widget::horizontal_rule(1),
+                regular_children.render(),
+                widget::horizontal_rule(1),
+            ]
+            .padding(10)
+            .spacing(10)
+            .into()
+        };
+        self.current_dropdown_id += 1;
+    }
+
+    fn get_summary_elements(&mut self, node: &Node, data: ChildData) -> RenderedSpan<'a, M, T> {
+        node.children
+            .borrow()
+            .iter()
+            .find_map(|elem| {
+                if let NodeData::Element { name, .. } = &elem.data {
+                    if &*name.local == "summary" {
+                        Some(elem)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .map(|n| {
+                let mut s = RenderedSpan::None;
+                self.traverse_node(&n, &mut s, data);
+                s
+            })
+            .unwrap_or_default()
+    }
+
     fn draw_image(&self, element: &mut RenderedSpan<'a, M, T>, attrs: &[html5ever::Attribute]) {
         if let Some(attr) = attrs.iter().find(|attr| &*attr.name.local == "src") {
             let url = &*attr.value;
@@ -221,7 +297,7 @@ impl<
     }
 
     fn draw_link(
-        &self,
+        &mut self,
         node: &Node,
         element: &mut RenderedSpan<'a, M, T>,
         attrs: &std::cell::Ref<'_, Vec<html5ever::Attribute>>,
@@ -266,16 +342,32 @@ impl<
         panic!()
     }
 
-    fn render_children(&self, node: &Node, element: &mut RenderedSpan<'a, M, T>, data: ChildData) {
+    fn render_children(
+        &mut self,
+        node: &Node,
+        element: &mut RenderedSpan<'a, M, T>,
+        data: ChildData,
+    ) {
         let children = node.children.borrow();
 
         let mut column = Vec::new();
         let mut row = RenderedSpan::None;
 
+        let mut skipped_summary = false;
+
         let mut i = 0;
         for item in children.iter() {
             if is_node_useless(item) {
                 continue;
+            }
+            if let NodeData::Element { name, .. } = &item.data {
+                if !skipped_summary
+                    && data.flags.contains(ChildDataFlags::SKIP_SUMMARY)
+                    && &*name.local == "summary"
+                {
+                    skipped_summary = true;
+                    continue;
+                }
             }
 
             let mut data = data;
@@ -327,18 +419,16 @@ impl<
         if let (false, Some(state), Some(select)) = (
             inline,
             self.state.selection_state.get(&code),
-            self.fn_select.clone(),
+            self.fn_update.clone(),
         ) {
-            let queue = self.state.selection_queue.clone();
             widget::text_editor(state)
                 .size(size)
-                .padding(0)
+                .padding(5)
                 .font(self.font_mono)
                 .on_action(move |action| {
-                    if !action.is_edit() {
-                        queue.lock().unwrap().push_back((code.clone(), action));
-                    }
-                    select()
+                    select(UpdateMsg {
+                        kind: UpdateMsgKind::TextEditor(code.clone(), action),
+                    })
                 })
                 .into()
         } else {
@@ -430,6 +520,7 @@ fn is_block_element(node: &Node) -> bool {
             | "ul"
             | "video"
             | "br"
+            | "summary" // not really block but acts like it
     )
 }
 
@@ -444,7 +535,7 @@ impl<
             + 'a,
     > From<MarkWidget<'a, M, T>> for Element<'a, M, T>
 {
-    fn from(value: MarkWidget<'a, M, T>) -> Self {
+    fn from(mut value: MarkWidget<'a, M, T>) -> Self {
         let node = &value.state.dom.document;
         let mut elem: RenderedSpan<'a, M, T> = widget::Column::new().into();
         value.traverse_node(node, &mut elem, ChildData::default());
@@ -455,12 +546,12 @@ impl<
 fn clean_whitespace(input: &str) -> String {
     let mut s = input.split_whitespace().collect::<Vec<&str>>().join(" ");
     if let Some(last) = input.chars().last() {
-        if last.is_whitespace() {
+        if last.is_whitespace() && last != '\n' {
             s.push(last);
         }
     }
     if let Some(first) = input.chars().next() {
-        if first.is_whitespace() {
+        if first.is_whitespace() && first != '\n' {
             s.insert(0, first);
         }
     }

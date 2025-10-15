@@ -1,4 +1,4 @@
-use frostmark::{MarkState, MarkWidget};
+use frostmark::{MarkState, MarkWidget, UpdateMsg};
 use iced::{
     widget::{self, text_editor::Content},
     Element, Length, Task,
@@ -10,7 +10,7 @@ enum Message {
     ToggleMarkdown(bool),
     /// For updating the HTML renderer state.
     /// You can add an id or enum here if you have multiple states
-    UpdateState,
+    UpdateState(UpdateMsg),
 }
 
 struct App {
@@ -31,8 +31,8 @@ impl App {
                     self.reparse();
                 }
             }
-            Message::UpdateState => {
-                self.state.update();
+            Message::UpdateState(msg) => {
+                self.state.update(msg);
             }
             Message::ToggleMarkdown(t) => {
                 self.markdown = t;
@@ -66,7 +66,7 @@ impl App {
             widget::row![
                 editor,
                 widget::scrollable(
-                    MarkWidget::new(&self.state).on_updating_state(|| Message::UpdateState)
+                    MarkWidget::new(&self.state).on_updating_state(|msg| Message::UpdateState(msg))
                 )
                 .width(Length::Fill),
             ]

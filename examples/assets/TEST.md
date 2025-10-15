@@ -62,3 +62,9 @@ List:
           - Subitem
     2. Subitem
         1. Subitem
+
+<details>
+<summary>Summary (shown)</summary>
+Text inside
+<summary>Not shown in preview</summary>
+</details>

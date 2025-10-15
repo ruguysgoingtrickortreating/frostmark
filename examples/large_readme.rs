@@ -3,7 +3,7 @@ use std::{
     fmt::Display,
 };
 
-use frostmark::{MarkState, MarkWidget};
+use frostmark::{MarkState, MarkWidget, UpdateMsg};
 use iced::{
     widget::{self, image, svg},
     Alignment, Element, Task,
@@ -33,7 +33,7 @@ fn main() {
 
 #[derive(Debug, Clone)]
 enum Message {
-    UpdateState,
+    UpdateState(UpdateMsg),
     OpenLink(String),
     ChangePage(Page),
     ImageDownloaded(Result<Image, String>),
@@ -50,7 +50,7 @@ struct App {
 impl App {
     fn update(&mut self, msg: Message) -> Task<Message> {
         match msg {
-            Message::UpdateState => self.state.update(),
+            Message::UpdateState(msg) => self.state.update(msg),
             Message::OpenLink(link) => {
                 _ = open::that(&link);
             }
@@ -89,7 +89,7 @@ impl App {
                 page_selector,
                 widget::horizontal_rule(2),
                 MarkWidget::new(&self.state)
-                    .on_updating_state(|| Message::UpdateState)
+                    .on_updating_state(|msg| Message::UpdateState(msg))
                     .on_clicking_link(Message::OpenLink)
                     .on_drawing_image(|info| self.draw_image(info)),
             ]
