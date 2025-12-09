@@ -102,6 +102,19 @@ impl MarkState {
         Self::with_html(&html)
     }
 
+    /// Processes documents containing **pure Markdown**,
+    /// filtering out any HTML content.
+    ///
+    /// Useful for things like messaging apps.
+    #[must_use]
+    #[cfg(feature = "markdown")]
+    pub fn with_markdown_only(input: &str) -> Self {
+        let mut out = Vec::new();
+        let mut out_cursor = std::io::Cursor::new(&mut out);
+        _ = comrak::html::escape(&mut out_cursor, input.as_bytes());
+        Self::with_html_and_markdown(&String::from_utf8_lossy(&out))
+    }
+
     /// Updates the internal state of the document.
     ///
     /// Call this method after receiving an update message
@@ -136,6 +149,12 @@ impl MarkState {
         let mut storage = HashSet::new();
         find_image_links(&self.dom.document, &mut storage);
         storage
+    }
+}
+
+impl Default for MarkState {
+    fn default() -> Self {
+        Self::with_html("")
     }
 }
 

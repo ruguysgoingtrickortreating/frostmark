@@ -72,6 +72,9 @@ impl<
                         if data.flags.contains(ChildDataFlags::UNDERLINE) {
                             t = t.underline(true);
                         }
+                        if data.flags.contains(ChildDataFlags::HIGHLIGHT) {
+                            t = t.background(iced::Color::from_rgb8(0xF7, 0xD8, 0x4B));
+                        }
                         t
                     }])
                 }
@@ -132,6 +135,7 @@ impl<
                 self.render_children(node, data.insert(ChildDataFlags::STRIKETHROUGH))
             }
             "code" => self.render_children(node, data.insert(ChildDataFlags::MONOSPACE)),
+            "mark" => self.render_children(node, data.insert(ChildDataFlags::HIGHLIGHT)),
 
             "details" => self.draw_details(node, data),
             "a" => self.draw_link(node, &attrs, data),

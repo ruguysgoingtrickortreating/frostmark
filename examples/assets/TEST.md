@@ -1,4 +1,4 @@
-A test of everything this currently supports.
+A test of <mark>everything</mark> this currently supports.
 
 <center>
 

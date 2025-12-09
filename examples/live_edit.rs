@@ -7,7 +7,7 @@ use iced::{
 #[derive(Debug, Clone)]
 enum Message {
     EditedText(widget::text_editor::Action),
-    ToggleMarkdown(bool),
+    ChangeParseMode(Mode),
     /// For updating the HTML renderer state.
     /// You can add an id or enum here if you have multiple states
     UpdateState(UpdateMsg),
@@ -16,9 +16,24 @@ enum Message {
 struct App {
     state: MarkState,
     editor: Content,
-    /// Whether to additionally support markdown
-    /// alongside HTML
-    markdown: bool,
+    mode: Mode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Mode {
+    HtmlOnly,
+    MarkdownOnly,
+    MarkdownAndHtml,
+}
+
+impl std::fmt::Display for Mode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Mode::HtmlOnly => write!(f, "HTML Only"),
+            Mode::MarkdownOnly => write!(f, "Markdown Only"),
+            Mode::MarkdownAndHtml => write!(f, "Markdown and HTML"),
+        }
+    }
 }
 
 impl App {
@@ -34,8 +49,8 @@ impl App {
             Message::UpdateState(msg) => {
                 self.state.update(msg);
             }
-            Message::ToggleMarkdown(t) => {
-                self.markdown = t;
+            Message::ChangeParseMode(t) => {
+                self.mode = t;
                 self.reparse();
             }
         }
@@ -43,18 +58,20 @@ impl App {
     }
 
     fn reparse(&mut self) {
-        self.state = if self.markdown {
-            MarkState::with_html_and_markdown(&self.editor.text())
-        } else {
-            MarkState::with_html(&self.editor.text())
+        let text = self.editor.text();
+        self.state = match self.mode {
+            Mode::HtmlOnly => MarkState::with_html(&text),
+            Mode::MarkdownOnly => MarkState::with_markdown_only(&text),
+            Mode::MarkdownAndHtml => MarkState::with_html_and_markdown(&text),
         };
     }
 
     fn view(&self) -> Element<'_, Message> {
-        let toggler = widget::row![
-            widget::toggler(self.markdown).on_toggle(Message::ToggleMarkdown),
-            "Support Markdown"
-        ]
+        let toggler = widget::row![widget::pick_list(
+            [Mode::MarkdownAndHtml, Mode::HtmlOnly, Mode::MarkdownOnly],
+            Some(self.mode),
+            Message::ChangeParseMode
+        ),]
         .spacing(10);
 
         let editor = widget::text_editor(&self.editor)
@@ -83,7 +100,7 @@ fn main() {
         .run_with(|| {
             (
                 App {
-                    markdown: true,
+                    mode: Mode::MarkdownAndHtml,
                     editor: Content::with_text(DEFAULT),
                     state: MarkState::with_html_and_markdown(DEFAULT),
                 },

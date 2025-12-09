@@ -4,7 +4,12 @@
 
 ## Added
 
-- Dropdown support: `<details>` / `<summary>`
+- Elements:
+  - `<details>` (dropdown) / `<summary>`
+  - `<mark>`
+- `MarkState::with_markdown_only` for filtering/sanitizing HTML inputs
+  (useful for messaging apps for example)
+- `MarkState::default()` for empty documents
 
 ## Changed
 

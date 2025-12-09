@@ -59,6 +59,7 @@ bitflags! {
         const KEEP_WHITESPACE = 1 << 4;
         const MONOSPACE = 1 << 5;
         const SKIP_SUMMARY = 1 << 6;
+        const HIGHLIGHT = 1 << 7;
     }
 }
 
