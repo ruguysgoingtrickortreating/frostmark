@@ -41,8 +41,9 @@ cargo run --example image --features="iced/image iced/tokio"
 
 # Large Readme
 
-Renders the README of a large project ([QuantumLauncher](https://github.com/Mrmayman/quantumlauncher))
-with this library.
+Renders two large READMEs:
+- One being a custom test page that covers all available formatting features
+- One being an example README of a large project ([QuantumLauncher](https://github.com/Mrmayman/quantumlauncher))
 
 Demonstrates:
 - Async image loading

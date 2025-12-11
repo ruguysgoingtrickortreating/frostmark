@@ -6,14 +6,20 @@
 
 - Elements:
   - `<details>` (dropdown) / `<summary>`
-  - `<mark>`
+  - `<mark>` (highlighted text)
 - `MarkState::with_markdown_only` for filtering/sanitizing HTML inputs
   (useful for messaging apps for example)
 - `MarkState::default()` for empty documents
 
+### Styling
+- `MarkWidget::text_size` and `MarkWidget::heading_scale`
+
+---
+
 ## Changed
 
 - iced's `wgpu` and `tiny-skia` backends now togglable via `iced-*` crate features
+- default color of links (now blue)
 
 ### State updating
 
