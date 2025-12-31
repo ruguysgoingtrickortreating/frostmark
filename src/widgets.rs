@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use iced::{advanced, widget, Element, Font};
+use iced::{advanced, widget, Element, Font, Length};
 
 pub fn link<'a, M: 'a, T, R: advanced::Renderer + 'a, F>(
     e: impl Into<Element<'a, M, T, R>>,
@@ -39,7 +39,7 @@ pub fn underline<'a, M: 'a, T: widget::rule::Catalog + 'a, R: advanced::Renderer
     widget::stack!(
         widget::column![e.into()],
         widget::column![
-            widget::space(),
+            widget::space().height(Length::Fill),
             widget::rule::horizontal(1),
             widget::space().height(1),
         ]
