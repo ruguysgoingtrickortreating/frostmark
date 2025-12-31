@@ -25,9 +25,10 @@ impl App {
                     text_color: Some(iced::Color::from_rgb8(255, 0, 0)),
                     link_color: Some(iced::Color::from_rgb8(255, 0, 255)),
                     highlight_color: Some(iced::Color::from_rgb8(0, 255, 0)),
-                }),
-            // Difference between link buttons and link text:
-            // Link buttons are links with non-text content (eg: images)
+                })
+                // Difference between link buttons and link text:
+                // Link buttons are links with non-text content (eg: images)
+                .paragraph_spacing(20.0),
         )
         .padding(10)
         .into()
@@ -52,7 +53,9 @@ This text will be red
 
 [This text will be purple](https://example.com)
 
-[<div>This text is styled using .style_link_button()</div>]()
-
 <mark>This text will be highlighted green</mark>
+
+Lots of spacing, hmm? That's done using .paragraph_spacing(20.0)
+
+[<div>This text is styled using .style_link_button()</div>]()
 "#;

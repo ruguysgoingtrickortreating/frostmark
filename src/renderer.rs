@@ -328,22 +328,20 @@ where
                 )
                 .into()
             }
+        } else if let RenderedSpan::Spans(n) = children {
+            RenderedSpan::Spans(
+                n.into_iter()
+                    .map(|n| n.underline(true).color(link_col))
+                    .collect(),
+            )
         } else {
-            if let RenderedSpan::Spans(n) = children {
-                RenderedSpan::Spans(
-                    n.into_iter()
-                        .map(|n| n.underline(true).color(link_col))
-                        .collect(),
-                )
-            } else {
-                link(
-                    children.render(),
-                    "",
-                    Some(&Self::e).filter(|_| false),
-                    self.fn_style_link_button.clone(),
-                )
-                .into()
-            }
+            link(
+                children.render(),
+                "",
+                Some(&Self::e).filter(|_| false),
+                self.fn_style_link_button.clone(),
+            )
+            .into()
         }
     }
 
@@ -414,7 +412,7 @@ where
                     .filter(|n| !n.is_empty())
                     .map(RenderedSpan::render),
             )
-            .spacing(5)
+            .spacing(self.paragraph_spacing.unwrap_or(5.0))
             .into()
         }
     }

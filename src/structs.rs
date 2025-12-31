@@ -115,6 +115,8 @@ pub struct MarkWidget<'a, Message, Theme = iced::Theme> {
     pub(crate) fn_style_link_button:
         Option<Arc<dyn Fn(&Theme, widget::button::Status) -> widget::button::Style + 'static>>,
 
+    pub(crate) paragraph_spacing: Option<f32>,
+
     pub(crate) current_dropdown_id: usize,
 }
 
@@ -136,6 +138,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
             current_dropdown_id: 0,
             text_size: 16.0,
             heading_scale: 1.0,
+            paragraph_spacing: None,
         }
     }
 
@@ -317,6 +320,32 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
         f: impl Fn(&T, widget::button::Status) -> widget::button::Style + 'static,
     ) -> Self {
         self.fn_style_link_button = Some(Arc::new(f));
+        self
+    }
+
+    /// Spacing between paragraphs or block elements. (default: 5.0)
+    ///
+    /// Visualization with an example document:
+    ///
+    /// ```txt
+    /// # My document
+    ///
+    /// --<spacing>--
+    ///
+    /// Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+    /// sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+    ///
+    /// --<spacing>--
+    ///
+    /// Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris
+    /// nisi ut aliquip ex ea commodo consequat.
+    ///
+    /// --<spacing>--
+    ///
+    /// <image here>
+    /// ```
+    pub fn paragraph_spacing(mut self, spacing: f32) -> Self {
+        self.paragraph_spacing = Some(spacing);
         self
     }
 }
