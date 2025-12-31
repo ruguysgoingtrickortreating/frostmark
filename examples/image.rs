@@ -25,7 +25,7 @@ mod image_loader;
 #[derive(Debug, Clone)]
 enum Message {
     EditedText(widget::text_editor::Action),
-    UpdateState,
+    UpdateState(frostmark::UpdateMsg),
     ImageDownloaded(Result<Image, String>),
 }
 
@@ -47,8 +47,8 @@ impl App {
                     return self.reparse();
                 }
             }
-            Message::UpdateState => {
-                self.state.update();
+            Message::UpdateState(m) => {
+                self.state.update(m);
             }
             Message::ImageDownloaded(res) => match res {
                 Ok(image) => {
@@ -91,7 +91,7 @@ impl App {
             editor,
             widget::scrollable(
                 MarkWidget::new(&self.state)
-                    .on_updating_state(|| Message::UpdateState)
+                    .on_updating_state(|m| Message::UpdateState(m))
                     .on_drawing_image(|info| {
                         // Note: This example doesn't handle SVG images
                         // but they are possible to implement.

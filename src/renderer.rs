@@ -21,6 +21,8 @@ impl<
             + widget::checkbox::Catalog
             + 'a,
     > MarkWidget<'a, M, T>
+where
+    <T as widget::button::Catalog>::Class<'a>: From<widget::button::StyleFn<'a, T>>,
 {
     pub(crate) fn traverse_node(&mut self, node: &Node, data: ChildData) -> RenderedSpan<'a, M, T> {
         match &node.data {
@@ -296,14 +298,14 @@ impl<
             .and_then(|n| n.link_color)
             .unwrap_or_else(|| iced::Color::from_rgb8(0x5A, 0x6B, 0x9E));
 
+        let children = self.render_children(node, data);
+
         if let Some(attr) = attrs
             .iter()
             .find(|attr| attr.name.local.to_string().as_str() == "href")
         {
             let url = attr.value.to_string();
             let children_empty = { node.children.borrow().is_empty() };
-
-            let children = self.render_children(node, data);
 
             let msg = self.fn_clicking_link.as_ref();
 
@@ -318,11 +320,15 @@ impl<
                         .collect(),
                 )
             } else {
-                link(children.render(), &url, msg).into()
+                link(
+                    children.render(),
+                    &url,
+                    msg,
+                    self.fn_style_link_button.clone(),
+                )
+                .into()
             }
         } else {
-            let children = self.render_children(node, data);
-
             if let RenderedSpan::Spans(n) = children {
                 RenderedSpan::Spans(
                     n.into_iter()
@@ -330,7 +336,13 @@ impl<
                         .collect(),
                 )
             } else {
-                link(children.render(), "", Some(&Self::e).filter(|_| false)).into()
+                link(
+                    children.render(),
+                    "",
+                    Some(&Self::e).filter(|_| false),
+                    self.fn_style_link_button.clone(),
+                )
+                .into()
             }
         }
     }
@@ -526,6 +538,8 @@ impl<
             + widget::checkbox::Catalog
             + 'a,
     > From<MarkWidget<'a, M, T>> for Element<'a, M, T>
+where
+    <T as widget::button::Catalog>::Class<'a>: From<widget::button::StyleFn<'a, T>>,
 {
     fn from(mut value: MarkWidget<'a, M, T>) -> Self {
         let node = &value.state.dom.document;
