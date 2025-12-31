@@ -57,3 +57,13 @@ Side-by-side comparison with frostmark (left) and VSCode (right):
 ```sh
 cargo run --example large_readme --features="iced/image iced/tokio iced/svg"
 ```
+
+---
+
+# Styling
+
+An example for styling text and widgets.
+
+```sh
+cargo run --example styling
+```

@@ -105,6 +105,7 @@ Rendering happens right inside `impl Into<Element> for MarkWidget`.
 
 ## Roadmap
 
+- Update to iced 0.14
 - Support for more elements (eg: superscript, table)
 
 # Contributing

@@ -80,6 +80,8 @@ pub enum UpdateMsgKind {
 type FClickLink<M> = Box<dyn Fn(String) -> M>;
 type FDrawImage<'a, M, T> = Box<dyn Fn(ImageInfo) -> Element<'static, M, T> + 'a>;
 type FUpdate<M> = Arc<dyn Fn(UpdateMsg) -> M>;
+pub(crate) type FStyleLinkButton<T> =
+    Arc<dyn Fn(&T, widget::button::Status) -> widget::button::Style + 'static>;
 
 /// The widget to be constructed every frame.
 ///
@@ -112,8 +114,7 @@ pub struct MarkWidget<'a, Message, Theme = iced::Theme> {
     pub(crate) fn_clicking_link: Option<FClickLink<Message>>,
     pub(crate) fn_drawing_image: Option<FDrawImage<'a, Message, Theme>>,
     pub(crate) fn_update: Option<FUpdate<Message>>,
-    pub(crate) fn_style_link_button:
-        Option<Arc<dyn Fn(&Theme, widget::button::Status) -> widget::button::Style + 'static>>,
+    pub(crate) fn_style_link_button: Option<FStyleLinkButton<Theme>>,
 
     pub(crate) paragraph_spacing: Option<f32>,
 
@@ -165,6 +166,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     /// Headings will be scaled as a multiple of this,
     /// altho you can fine-tune their relative scale
     /// using [`MarkWidget::heading_scale`].
+    #[must_use]
     pub fn text_size(mut self, size: impl Into<iced::Pixels>) -> Self {
         self.text_size = size.into().0;
         self
@@ -183,6 +185,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     /// - above 1.0: headings will be **much bigger** than regular text.
     ///
     /// For reference, in scale 1.0, `<h1>` headings are 1.8x bigger than regular text.
+    #[must_use]
     pub fn heading_scale(mut self, scale: f32) -> Self {
         assert!(scale >= 0.0);
         self.heading_scale = scale;
@@ -303,6 +306,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
 
     /// Change the color of different kinds of text
     /// in the document using [`crate::Style`].
+    #[must_use]
     pub fn style(mut self, style: crate::Style) -> Self {
         self.style = Some(style);
         self
@@ -315,6 +319,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     ///
     /// For example, you could pass in `iced::widget::button::text`
     /// if you use iced's built-in theme, or have your own function here.
+    #[must_use]
     pub fn style_link_button(
         mut self,
         f: impl Fn(&T, widget::button::Status) -> widget::button::Style + 'static,
@@ -344,6 +349,7 @@ impl<'a, M: 'a, T: 'a> MarkWidget<'a, M, T> {
     ///
     /// <image here>
     /// ```
+    #[must_use]
     pub fn paragraph_spacing(mut self, spacing: f32) -> Self {
         self.paragraph_spacing = Some(spacing);
         self
