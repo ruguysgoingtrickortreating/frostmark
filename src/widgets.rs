@@ -1,12 +1,12 @@
-use std::sync::Arc;
-
 use iced::{advanced, widget, Element, Font};
+
+use crate::structs::FStyleLinkButton;
 
 pub fn link<'a, M: 'a, T, R: advanced::Renderer + 'a, F>(
     e: impl Into<Element<'a, M, T, R>>,
     url: &str,
     msg: Option<&F>,
-    f: Option<Arc<dyn Fn(&T, widget::button::Status) -> widget::button::Style + 'static>>,
+    f: Option<FStyleLinkButton<T>>,
 ) -> widget::Button<'a, M, T, R>
 where
     T: widget::button::Catalog + widget::rule::Catalog + 'a,
